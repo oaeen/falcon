@@ -93,4 +93,38 @@ func TestAdminAPIAuthAndCRUD(t *testing.T) {
 	if prevOut["totalHits"].(float64) != 1 {
 		t.Fatalf("expected 1 redact hit, got %+v", prevOut)
 	}
+
+	// POST /admin/v1/settings toggling lanEnabled true <-> false on same gateway port
+	if err := gw.Start(); err != nil {
+		t.Fatalf("gw.Start: %v", err)
+	}
+	defer func() { _ = gw.Stop(context.Background()) }()
+
+	setLAN := func(enabled bool) map[string]any {
+		t.Helper()
+		b, _ := json.Marshal(map[string]any{"lanEnabled": enabled})
+		r, _ := http.NewRequest(http.MethodPost, baseURL+"/admin/v1/settings", bytes.NewReader(b))
+		r.Header.Set("Authorization", "Bearer secret-token-123")
+		r.Header.Set("Content-Type", "application/json")
+		resp, err := http.DefaultClient.Do(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("POST /admin/v1/settings lanEnabled=%v got %d", enabled, resp.StatusCode)
+		}
+		var out map[string]any
+		_ = json.NewDecoder(resp.Body).Decode(&out)
+		return out
+	}
+
+	lanRes := setLAN(true)
+	if stObj := lanRes["status"].(map[string]any); stObj["lanEnabled"] != true {
+		t.Fatalf("expected lanEnabled=true, got %+v", stObj)
+	}
+	loopRes := setLAN(false)
+	if stObj := loopRes["status"].(map[string]any); stObj["lanEnabled"] != false {
+		t.Fatalf("expected lanEnabled=false, got %+v", stObj)
+	}
 }

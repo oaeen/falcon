@@ -273,6 +273,7 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	prev := s.store.Settings()
 	settings, relisten, err := s.store.UpdateSettings(patch)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
@@ -280,7 +281,11 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	if relisten {
 		if err := s.gateway.Relisten(); err != nil {
-			writeErr(w, http.StatusInternalServerError, "settings saved, but gateway relisten failed: "+err.Error())
+			_, _, _ = s.store.UpdateSettings(types.SettingsPatch{
+				Port:       &prev.Port,
+				LanEnabled: &prev.LanEnabled,
+			})
+			writeErr(w, http.StatusInternalServerError, "gateway relisten failed (reverted port/lanEnabled): "+err.Error())
 			return
 		}
 	}

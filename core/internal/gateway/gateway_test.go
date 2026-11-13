@@ -274,3 +274,112 @@ func TestSelectedModelsSubsetRoutingAndListing(t *testing.T) {
 		t.Fatalf("expected ModelCount=0 when SelectedModels is empty, got %d", got)
 	}
 }
+
+func TestGatewayRelistenLoopbackLAN(t *testing.T) {
+	st, err := store.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := freePort(t)
+	lanFalse := false
+	_, _, err = st.UpdateSettings(types.SettingsPatch{
+		Port:       &port,
+		LanEnabled: &lanFalse,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gw := New(st, router.New(), nil, nil)
+	if err := gw.Start(); err != nil {
+		t.Fatalf("gw.Start: %v", err)
+	}
+	defer func() { _ = gw.Stop(context.Background()) }()
+
+	checkHealth := func(url string) {
+		t.Helper()
+		resp, err := http.Get(url + "/health")
+		if err != nil {
+			t.Fatalf("GET %s/health: %v", url, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200 from %s/health, got %d", url, resp.StatusCode)
+		}
+	}
+
+	if got := gw.Status().ListenAddr; got != fmt.Sprintf("127.0.0.1:%d", port) {
+		t.Fatalf("expected 127.0.0.1:%d, got %s", port, got)
+	}
+	checkHealth(fmt.Sprintf("http://127.0.0.1:%d", port))
+
+	// Switch 127.0.0.1:P -> 0.0.0.0:P on the exact same port
+	lanTrue := true
+	_, _, err = st.UpdateSettings(types.SettingsPatch{LanEnabled: &lanTrue})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := gw.Relisten(); err != nil {
+		t.Fatalf("Relisten to LAN on same port %d failed: %v", port, err)
+	}
+	stLAN := gw.Status()
+	if (stLAN.ListenAddr != fmt.Sprintf("0.0.0.0:%d", port) && stLAN.ListenAddr != fmt.Sprintf("[::]:%d", port)) || !stLAN.Running || !stLAN.LanEnabled {
+		t.Fatalf("unexpected status after LAN relisten: %+v", stLAN)
+	}
+	checkHealth(fmt.Sprintf("http://127.0.0.1:%d", port))
+	if len(stLAN.LanUrls) > 0 {
+		anyLanOK := false
+		for _, lanURL := range stLAN.LanUrls {
+			if r, err := http.Get(lanURL + "/health"); err == nil {
+				r.Body.Close()
+				if r.StatusCode == http.StatusOK {
+					anyLanOK = true
+					break
+				}
+			}
+		}
+		if !anyLanOK {
+			t.Fatalf("expected at least one LAN URL %v to respond /health", stLAN.LanUrls)
+		}
+	}
+
+	// Switch back 0.0.0.0:P -> 127.0.0.1:P on the exact same port
+	_, _, err = st.UpdateSettings(types.SettingsPatch{LanEnabled: &lanFalse})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := gw.Relisten(); err != nil {
+		t.Fatalf("Relisten back to loopback on same port %d failed: %v", port, err)
+	}
+	stLoop := gw.Status()
+	if stLoop.ListenAddr != fmt.Sprintf("127.0.0.1:%d", port) || !stLoop.Running || stLoop.LanEnabled {
+		t.Fatalf("unexpected status after loopback relisten: %+v", stLoop)
+	}
+	checkHealth(fmt.Sprintf("http://127.0.0.1:%d", port))
+}
+
+func TestFilterAndSortLANIPs(t *testing.T) {
+	entries := []ifaceIP{
+		{name: "utun4", ip: net.ParseIP("198.18.0.1")},
+		{name: "utun5", ip: net.ParseIP("198.19.1.2")},
+		{name: "rmnet_data0", ip: net.ParseIP("10.123.45.6")},
+		{name: "CCMNI0", ip: net.ParseIP("100.64.0.1")},
+		{name: "pdp_ip0", ip: net.ParseIP("10.0.0.2")},
+		{name: "clat4", ip: net.ParseIP("192.0.0.4")},
+		{name: "dummy0", ip: net.ParseIP("172.16.0.5")},
+		{name: "utun3", ip: net.ParseIP("100.79.234.90")},
+		{name: "wlan0", ip: net.ParseIP("192.168.1.73")},
+		{name: "eth0", ip: net.ParseIP("10.0.0.12")},
+		{name: "lo", ip: net.ParseIP("127.0.0.1")},
+	}
+	got := filterAndSortLANIPs(entries)
+	want := []string{"10.0.0.12", "192.168.1.73", "100.79.234.90"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("index %d: expected %v, got %v", i, want, got)
+		}
+	}
+}

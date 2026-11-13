@@ -26,6 +26,7 @@ import (
 
 // Server implements the multi-protocol AI gateway HTTP server with hot Relisten().
 type Server struct {
+	relistenMu sync.Mutex
 	mu         sync.Mutex
 	store      *store.Store
 	router     *router.Router
@@ -57,43 +58,36 @@ func (s *Server) Start() error {
 	return s.Relisten()
 }
 
-// Relisten swaps the TCP listener cleanly whenever port or lanEnabled changes.
-func (s *Server) Relisten() error {
-	settings := s.store.Settings()
-	host := "127.0.0.1"
-	if settings.LanEnabled {
-		host = "0.0.0.0"
+func listenWithRetry(addr string) (net.Listener, error) {
+	var lastErr error
+	for i := 0; i < 6; i++ {
+		ln, err := net.Listen("tcp", addr)
+		if err == nil {
+			return ln, nil
+		}
+		lastErr = err
+		if !strings.Contains(strings.ToLower(err.Error()), "address already in use") {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
-	addr := fmt.Sprintf("%s:%d", host, settings.Port)
+	return nil, lastErr
+}
 
-	ln, err := net.Listen("tcp", addr)
-	if err != nil {
-		return fmt.Errorf("listen %s: %w", addr, err)
-	}
+func (s *Server) bindAndServe(ln net.Listener, host string) {
 	actualPort := ln.Addr().(*net.TCPAddr).Port
-
 	srv := &http.Server{
 		Handler:           s.handler(),
 		ReadHeaderTimeout: 30 * time.Second,
 	}
 
 	s.mu.Lock()
-	oldSrv := s.httpSrv
-	oldLn := s.ln
 	s.ln = ln
 	s.httpSrv = srv
-	s.listenAddr = ln.Addr().String()
+	s.listenAddr = fmt.Sprintf("%s:%d", host, actualPort)
 	s.port = actualPort
 	s.running = true
 	s.mu.Unlock()
-
-	if oldSrv != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		_ = oldSrv.Shutdown(ctx)
-		cancel()
-	} else if oldLn != nil {
-		_ = oldLn.Close()
-	}
 
 	go func() {
 		err := srv.Serve(ln)
@@ -105,7 +99,61 @@ func (s *Server) Relisten() error {
 			s.mu.Unlock()
 		}
 	}()
+}
 
+// Relisten swaps the TCP listener cleanly whenever port or lanEnabled changes.
+// It closes the prior listener BEFORE binding the new address so switching
+// 127.0.0.1:<port> <-> 0.0.0.0:<port> succeeds on Linux/Android without EADDRINUSE.
+func (s *Server) Relisten() error {
+	s.relistenMu.Lock()
+	defer s.relistenMu.Unlock()
+
+	settings := s.store.Settings()
+	host := "127.0.0.1"
+	if settings.LanEnabled {
+		host = "0.0.0.0"
+	}
+	addr := fmt.Sprintf("%s:%d", host, settings.Port)
+
+	s.mu.Lock()
+	if s.httpSrv != nil && s.ln != nil && s.running && s.listenAddr == addr {
+		s.mu.Unlock()
+		return nil
+	}
+	oldSrv := s.httpSrv
+	oldLn := s.ln
+	oldAddr := s.listenAddr
+	oldHost := "127.0.0.1"
+	if strings.HasPrefix(oldAddr, "0.0.0.0:") || strings.HasPrefix(oldAddr, "[::]:") {
+		oldHost = "0.0.0.0"
+	}
+	wasRunning := s.running
+	s.httpSrv = nil
+	s.ln = nil
+	s.running = false
+	s.mu.Unlock()
+
+	// Release the existing listening socket BEFORE binding the new address.
+	if oldLn != nil {
+		_ = oldLn.Close()
+	}
+	if oldSrv != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		_ = oldSrv.Shutdown(ctx)
+		cancel()
+	}
+
+	ln, err := listenWithRetry(addr)
+	if err != nil {
+		if wasRunning && oldAddr != "" {
+			if rbLn, rbErr := listenWithRetry(oldAddr); rbErr == nil {
+				s.bindAndServe(rbLn, oldHost)
+			}
+		}
+		return fmt.Errorf("listen %s: %w", addr, err)
+	}
+
+	s.bindAndServe(ln, host)
 	return nil
 }
 
@@ -188,16 +236,78 @@ func (s *Server) Status() types.GatewayStatus {
 	}
 }
 
-// EnumerateLANIPv4 returns sorted active non-loopback IPv4 addresses on local interfaces.
+type ifaceIP struct {
+	name string
+	ip   net.IP
+}
+
+var excludedIfacePrefixes = []string{"rmnet", "ccmni", "pdp_ip", "clat", "dummy"}
+
+func isExcludedIfaceName(name string) bool {
+	lower := strings.ToLower(strings.TrimSpace(name))
+	for _, p := range excludedIfacePrefixes {
+		if strings.HasPrefix(lower, p) {
+			return true
+		}
+	}
+	return false
+}
+
+func isFakeIPv4(v4 net.IP) bool {
+	// RFC 2544 benchmark / Clash & Sing-box TUN fake-IP subnet 198.18.0.0/15
+	return v4[0] == 198 && (v4[1] == 18 || v4[1] == 19)
+}
+
+func isRFC1918(v4 net.IP) bool {
+	if v4[0] == 10 {
+		return true
+	}
+	if v4[0] == 172 && v4[1] >= 16 && v4[1] <= 31 {
+		return true
+	}
+	return v4[0] == 192 && v4[1] == 168
+}
+
+func filterAndSortLANIPs(entries []ifaceIP) []string {
+	var rfc1918, other []string
+	seen := make(map[string]bool)
+	for _, ent := range entries {
+		if isExcludedIfaceName(ent.name) {
+			continue
+		}
+		if ent.ip == nil || ent.ip.IsLoopback() || ent.ip.IsLinkLocalUnicast() || ent.ip.IsLinkLocalMulticast() || ent.ip.IsUnspecified() || ent.ip.IsMulticast() {
+			continue
+		}
+		v4 := ent.ip.To4()
+		if v4 == nil || isFakeIPv4(v4) {
+			continue
+		}
+		s := v4.String()
+		if seen[s] {
+			continue
+		}
+		seen[s] = true
+		if isRFC1918(v4) {
+			rfc1918 = append(rfc1918, s)
+		} else {
+			other = append(other, s)
+		}
+	}
+	sort.Strings(rfc1918)
+	sort.Strings(other)
+	return append(rfc1918, other...)
+}
+
+// EnumerateLANIPv4 returns sorted active non-loopback IPv4 addresses on local interfaces,
+// excluding fake-IP TUN ranges (198.18.0.0/15) and cellular/dummy interfaces, with RFC 1918 prioritized.
 func EnumerateLANIPv4() []string {
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		return nil
 	}
-	var ips []string
-	seen := make(map[string]bool)
+	var entries []ifaceIP
 	for _, iface := range ifaces {
-		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 || isExcludedIfaceName(iface.Name) {
 			continue
 		}
 		addrs, err := iface.Addrs()
@@ -212,22 +322,10 @@ func EnumerateLANIPv4() []string {
 			case *net.IPAddr:
 				ip = v.IP
 			}
-			if ip == nil || ip.IsLoopback() || ip.IsLinkLocalUnicast() {
-				continue
-			}
-			v4 := ip.To4()
-			if v4 == nil {
-				continue
-			}
-			s := v4.String()
-			if !seen[s] {
-				seen[s] = true
-				ips = append(ips, s)
-			}
+			entries = append(entries, ifaceIP{name: iface.Name, ip: ip})
 		}
 	}
-	sort.Strings(ips)
-	return ips
+	return filterAndSortLANIPs(entries)
 }
 
 func (s *Server) handler() http.Handler {
