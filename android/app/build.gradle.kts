@@ -1,7 +1,30 @@
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+val keyProps = Properties().apply {
+    rootProject.file("key.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+}
+
+val hasWholeReleaseKey =
+    listOf("storeFile", "keyAlias").all { !keyProps.getProperty(it).isNullOrBlank() } &&
+        listOf("storePassword", "keyPassword").all { !keyProps.getProperty(it).isNullOrEmpty() } &&
+        file(keyProps.getProperty("storeFile")).exists()
+
+// Encodes UTC+8 build minute as (year - 2026) * 10^8 + MMDDhhmm when flutter.versionCode <= 1.
+fun buildMinuteVersionCode(): Int {
+    val t = OffsetDateTime.now(ZoneOffset.ofHours(8))
+    return (t.year - 2026) * 100_000_000 +
+        t.monthValue * 1_000_000 +
+        t.dayOfMonth * 10_000 +
+        t.hour * 100 +
+        t.minute
 }
 
 android {
@@ -15,25 +38,43 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "io.github.falcon.app"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
-        // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
-        // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
-        // You can force using the value of versionCode by specifying the `-P force-version-code-ignoring-abi=true`
-        // flag during build.
-        versionCode = flutter.versionCode
+        minSdk = 26
+        targetSdk = 35
+        versionCode = flutter.versionCode.takeIf { it > 1 } ?: buildMinuteVersionCode()
         versionName = flutter.versionName
     }
 
+    packaging {
+        // Extract libfalcon_core.so and libbun.so into nativeLibraryDir with executable permissions.
+        jniLibs {
+            useLegacyPackaging = true
+            keepDebugSymbols += listOf("**/libfalcon_core.so", "**/libbun.so")
+        }
+    }
+
+    signingConfigs {
+        if (hasWholeReleaseKey) {
+            create("release") {
+                storeFile = keyProps.getProperty("storeFile")?.let { file(it) }
+                storePassword = keyProps.getProperty("storePassword")
+                keyAlias = keyProps.getProperty("keyAlias")
+                keyPassword = keyProps.getProperty("keyPassword")
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            if (hasWholeReleaseKey) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName(if (hasWholeReleaseKey) "release" else "debug")
         }
     }
 }
