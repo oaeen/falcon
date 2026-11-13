@@ -1,0 +1,185 @@
+{
+  "version": 1,
+  "plugins": [
+    {
+      "package": "@magpie-community/opencode-zen-free-auth",
+      "name": "OpenCode Zen Free",
+      "icon": "opencode",
+      "kind": "provider",
+      "providers": ["opencode-zen-free"],
+      "community": true,
+      "summary": {
+        "en": "Public credential access to OpenCode Zen free models with automatic model discovery and streaming.",
+        "zh": "使用公共凭证接入 OpenCode Zen 免费模型，支持自动发现模型与流式响应。"
+      }
+    },
+    {
+      "package": "opencode-copilot-auth",
+      "name": "GitHub Copilot",
+      "icon": "githubcopilot",
+      "kind": "provider",
+      "providers": ["github-copilot"],
+      "community": false,
+      "summary": {
+        "en": "Access models included in your GitHub Copilot subscription via OAuth device authentication.",
+        "zh": "通过 OAuth 设备码授权接入 GitHub Copilot 订阅内包含的模型。"
+      }
+    },
+    {
+      "package": "opencode-gemini-auth",
+      "name": "Google Gemini",
+      "icon": "gemini",
+      "kind": "provider",
+      "providers": ["google"],
+      "community": false,
+      "summary": {
+        "en": "Use your Google account quota for Gemini models through OAuth authentication.",
+        "zh": "通过 Google OAuth 授权使用 Gemini 模型额度。"
+      }
+    },
+    {
+      "package": "opencode-anthropic-auth",
+      "name": "Anthropic Claude",
+      "icon": "anthropic",
+      "kind": "provider",
+      "providers": ["anthropic"],
+      "community": false,
+      "summary": {
+        "en": "Authenticate with your Claude subscription account via OAuth.",
+        "zh": "通过 OAuth 授权接入 Claude 订阅账号。"
+      }
+    },
+    {
+      "package": "opencode-openai-codex-auth",
+      "name": "OpenAI Codex",
+      "icon": "openai",
+      "kind": "provider",
+      "providers": ["openai"],
+      "community": false,
+      "summary": {
+        "en": "Use your ChatGPT Plus or Pro subscription for OpenAI Codex models via OAuth.",
+        "zh": "通过 OAuth 授权使用 ChatGPT Plus 或 Pro 订阅的 Codex 模型。"
+      }
+    },
+    {
+      "package": "opencode-qwen-auth",
+      "name": "Qwen",
+      "icon": "qwen",
+      "kind": "provider",
+      "providers": ["qwen"],
+      "community": true,
+      "summary": {
+        "en": "Sign in to Qwen Coding Plan and Tongyi services via OAuth device flow.",
+        "zh": "通过设备授权登录通义千问及 Qwen Coding 订阅。"
+      }
+    },
+    {
+      "package": "opencode-deepseek-web-auth",
+      "name": "DeepSeek Web",
+      "icon": "deepseek",
+      "kind": "provider",
+      "providers": ["deepseek-web"],
+      "community": true,
+      "summary": {
+        "en": "Access DeepSeek models using an authenticated web session token.",
+        "zh": "使用网页会话凭证接入 DeepSeek 模型服务。"
+      }
+    },
+    {
+      "package": "opencode-kimi-auth",
+      "name": "Kimi",
+      "icon": "moonshot",
+      "kind": "provider",
+      "providers": ["kimi"],
+      "community": true,
+      "summary": {
+        "en": "Connect your Moonshot Kimi subscription or session token.",
+        "zh": "接入 Moonshot Kimi 订阅与会话凭证。"
+      }
+    },
+    {
+      "package": "opencode-glm-auth",
+      "name": "Zhipu GLM",
+      "icon": "zhipu",
+      "kind": "provider",
+      "providers": ["glm"],
+      "community": true,
+      "summary": {
+        "en": "Connect Zhipu BigModel and Z.ai GLM Coding Plan subscriptions.",
+        "zh": "接入智谱 BigModel 与 Z.ai GLM Coding 订阅。"
+      }
+    },
+    {
+      "package": "opencode-minimax-auth",
+      "name": "MiniMax",
+      "icon": "minimax",
+      "kind": "provider",
+      "providers": ["minimax"],
+      "community": true,
+      "summary": {
+        "en": "Authenticate with MiniMax Coding Plan and query quota usage.",
+        "zh": "接入 MiniMax Coding 订阅并查询配额用量。"
+      }
+    },
+    {
+      "package": "opencode-doubao-auth",
+      "name": "Doubao",
+      "icon": "doubao",
+      "kind": "provider",
+      "providers": ["doubao"],
+      "community": true,
+      "summary": {
+        "en": "Connect Doubao Coding Plan and Volcengine Ark subscriptions.",
+        "zh": "接入豆包 Coding Plan 与火山方舟订阅服务。"
+      }
+    },
+    {
+      "package": "opencode-cursor-auth",
+      "name": "Cursor",
+      "icon": "cursor",
+      "kind": "provider",
+      "providers": ["cursor"],
+      "community": true,
+      "summary": {
+        "en": "Access models available in your Cursor Pro, Ultra, or Teams subscription.",
+        "zh": "使用 Cursor Pro、Ultra 或 Teams 订阅内的模型。"
+      }
+    },
+    {
+      "package": "opencode-windsurf-auth",
+      "name": "Windsurf",
+      "icon": "windsurf",
+      "kind": "provider",
+      "providers": ["windsurf"],
+      "community": true,
+      "summary": {
+        "en": "Connect Windsurf subscription models and workspace quota.",
+        "zh": "接入 Windsurf 订阅模型与额度信息。"
+      }
+    },
+    {
+      "package": "opencode-trae-auth",
+      "name": "Trae",
+      "icon": "trae",
+      "kind": "provider",
+      "providers": ["trae"],
+      "community": true,
+      "summary": {
+        "en": "Authenticate with Trae subscription models for mainland and global editions.",
+        "zh": "接入 Trae 国内版与国际版订阅模型。"
+      }
+    },
+    {
+      "package": "opencode-workbuddy-auth",
+      "name": "WorkBuddy",
+      "icon": "workbuddy",
+      "kind": "provider",
+      "providers": ["workbuddy", "workbuddy-ai"],
+      "community": true,
+      "summary": {
+        "en": "Support WorkBuddy China (CodeBuddy plan) and international editions.",
+        "zh": "支持 WorkBuddy 国内版（CodeBuddy 套餐）与国际版。"
+      }
+    }
+  ]
+}
