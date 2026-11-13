@@ -30,6 +30,7 @@ build/
 coverage/
 ios/Flutter/ephemeral/
 macos/Flutter/ephemeral/
+**/.symlinks/
 
 # Symbolication related
 app.*.symbols
