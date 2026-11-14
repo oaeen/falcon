@@ -182,6 +182,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get gatewayLoopbackLabel => 'Loopback';
 
   @override
+  String get gatewayLanUrlLabel => 'LAN Endpoint';
+
+  @override
   String get gatewayLocalKeyless => 'Local Keyless Access';
 
   @override
@@ -440,7 +443,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Search plugin name, package, or provider';
 
   @override
-  String get pluginsMarketChinaMirror => 'China Mirror';
+  String get pluginsMarketChinaMirror => 'CN Mirror';
 
   @override
   String get pluginsMarketCategoryAll => 'All';
@@ -507,6 +510,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pluginsSelectModels => 'Models';
+
+  @override
+  String get pluginsModelsRowLabel => 'Models';
+
+  @override
+  String get pluginsActionSignInShort => 'Sign In';
+
+  @override
+  String get pluginsAuthMethodBrowser => 'Browser OAuth';
+
+  @override
+  String get pluginsAuthMethodApiKey => 'API Key';
 
   @override
   String pluginsSelectedModelsSummary(int count, int total) {
@@ -642,6 +657,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String routingGroupDeleteConfirm(String name) {
     return 'Delete routing group \"$name\"?';
+  }
+
+  @override
+  String routingMembersSummary(int count, String strategy) {
+    return '$count targets · $strategy';
   }
 
   @override

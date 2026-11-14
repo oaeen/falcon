@@ -9,8 +9,9 @@ import '../../data/admin_models.dart';
 import '../../l10n/l10n.dart';
 import '../../state/gateway_state.dart';
 import '../../theme/falcon_theme.dart';
+import '../widgets/falcon_card.dart';
+import '../widgets/falcon_row.dart';
 import '../widgets/sheet_frame.dart';
-import '../widgets/status_pill.dart';
 import 'plugin_provider_labels.dart';
 
 class PluginSignInSheet extends ConsumerStatefulWidget {
@@ -241,7 +242,8 @@ class _PluginSignInSheetState extends ConsumerState<PluginSignInSheet> {
 
     if (!_started) {
       return FalconSheetFrame(
-        title: '${widget.plugin.name} · ${l10n.pluginsSignInTitle}',
+        title: l10n.pluginsSignInTitle,
+        subtitle: widget.plugin.name,
         footer: FilledButton(
           key: const ValueKey('signin-start-btn'),
           onPressed: _startSession,
@@ -251,59 +253,54 @@ class _PluginSignInSheetState extends ConsumerState<PluginSignInSheet> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (_providers.length > 1) ...[
-              Text(
-                l10n.pluginsEditionLabel,
-                style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                  color: c.textSecondary,
+              SectionHeader(title: l10n.pluginsEditionLabel),
+              FalconCard(
+                child: Column(
+                  children: [
+                    for (var i = 0; i < _providers.length; i++) ...[
+                      if (i > 0) const FalconDivider.icon(),
+                      _RadioOptionRow(
+                        rowKey: ValueKey('signin-edition-${_providers[i].id}'),
+                        label: localizedPluginProviderTitle(
+                          l10n,
+                          _providers[i],
+                        ),
+                        selected: _providers[i].id == _selectedProviderId,
+                        onTap: () {
+                          final detail = _providers[i];
+                          final nextMethods = _mobileMethodsFor(detail);
+                          setState(() {
+                            _selectedProviderId = detail.id;
+                            _selectedMethodIndex = nextMethods.isNotEmpty
+                                ? nextMethods.first.index
+                                : 0;
+                          });
+                        },
+                      ),
+                    ],
+                  ],
                 ),
               ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _providers.map((detail) {
-                  final selected = detail.id == _selectedProviderId;
-                  return ChoiceChip(
-                    key: ValueKey('signin-edition-${detail.id}'),
-                    label: Text(localizedPluginProviderTitle(l10n, detail)),
-                    selected: selected,
-                    onSelected: (_) {
-                      final nextMethods = _mobileMethodsFor(detail);
-                      setState(() {
-                        _selectedProviderId = detail.id;
-                        _selectedMethodIndex =
-                            nextMethods.isNotEmpty ? nextMethods.first.index : 0;
-                      });
-                    },
-                  );
-                }).toList(growable: false),
-              ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
             ],
             if (methods.isNotEmpty) ...[
-              Text(
-                l10n.pluginsAuthMethodLabel,
-                style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                  color: c.textSecondary,
+              SectionHeader(title: l10n.pluginsAuthMethodLabel),
+              FalconCard(
+                child: Column(
+                  children: [
+                    for (var i = 0; i < methods.length; i++) ...[
+                      if (i > 0) const FalconDivider.icon(),
+                      _RadioOptionRow(
+                        rowKey: ValueKey('signin-method-${methods[i].index}'),
+                        label: localizedPluginAuthMethodLabel(l10n, methods[i]),
+                        selected: methods[i].index == _selectedMethodIndex,
+                        onTap: () => setState(
+                          () => _selectedMethodIndex = methods[i].index,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: methods.map((m) {
-                  return ChoiceChip(
-                    key: ValueKey('signin-method-${m.index}'),
-                    label: Text(m.label),
-                    selected: m.index == _selectedMethodIndex,
-                    onSelected: (_) =>
-                        setState(() => _selectedMethodIndex = m.index),
-                  );
-                }).toList(growable: false),
               ),
             ],
             if (activeMethod != null &&
@@ -315,7 +312,7 @@ class _PluginSignInSheetState extends ConsumerState<PluginSignInSheet> {
                 controller: _apiKeyCtrl,
                 obscureText: true,
                 decoration: InputDecoration(
-                  labelText: activeMethod.label,
+                  labelText: localizedPluginAuthMethodLabel(l10n, activeMethod),
                   hintText: activeMethod.placeholder,
                 ),
               ),
@@ -326,7 +323,8 @@ class _PluginSignInSheetState extends ConsumerState<PluginSignInSheet> {
     }
 
     return FalconSheetFrame(
-      title: '${widget.plugin.name} · ${l10n.pluginsSignInTitle}',
+      title: l10n.pluginsSignInTitle,
+      subtitle: widget.plugin.name,
       footer: phase == 'done' || phase == 'failed' || _error != null
           ? FilledButton(
               onPressed: () => Navigator.of(context).pop(phase == 'done'),
@@ -337,22 +335,38 @@ class _PluginSignInSheetState extends ConsumerState<PluginSignInSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (_error != null) ...[
-            StatusPill(label: l10n.pluginsSignInFailed, tone: StatusTone.danger),
-            const SizedBox(height: 10),
+            Text(
+              l10n.pluginsSignInFailed,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: c.danger,
+              ),
+            ),
+            const SizedBox(height: 8),
             Text(_error!, style: TextStyle(color: c.danger, fontSize: 13)),
           ] else if (phase == 'done') ...[
-            StatusPill(
-              label: l10n.pluginsSignInSuccess,
-              tone: StatusTone.success,
+            Row(
+              children: [
+                Icon(Icons.check_circle_outline_rounded, size: 18, color: c.textPrimary),
+                const SizedBox(width: 8),
+                Text(
+                  l10n.pluginsSignInSuccess,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: c.textPrimary,
+                  ),
+                ),
+              ],
             ),
             if (_session?.account != null) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Text(
                 _session!.account!.label,
                 style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: c.textPrimary,
+                  fontSize: 14,
+                  color: c.textSecondary,
                 ),
               ),
             ],
@@ -514,6 +528,56 @@ class _PluginSignInSheetState extends ConsumerState<PluginSignInSheet> {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _RadioOptionRow extends StatelessWidget {
+  const _RadioOptionRow({
+    required this.rowKey,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final Key rowKey;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = FalconColors.of(context);
+    return InkWell(
+      key: rowKey,
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        child: Row(
+          children: [
+            Icon(
+              selected
+                  ? Icons.radio_button_checked_rounded
+                  : Icons.radio_button_off_rounded,
+              size: 19,
+              color: selected ? c.accent : c.textMuted,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                  color: c.textPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

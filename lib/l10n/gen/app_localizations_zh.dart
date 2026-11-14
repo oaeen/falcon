@@ -178,16 +178,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get gatewayLoopbackLabel => '本机端点';
 
   @override
+  String get gatewayLanUrlLabel => '局域网地址';
+
+  @override
   String get gatewayLocalKeyless => '本机免密访问';
 
   @override
-  String get gatewayLocalKeylessHint => '仅 127.0.0.1 本机请求可免密钥访问';
+  String get gatewayLocalKeylessHint => '仅本机 127.0.0.1 请求免密钥';
 
   @override
   String get gatewayLanAccess => '局域网访问';
 
   @override
-  String get gatewayLanAccessHint => '开放同局域网设备访问当前端口';
+  String get gatewayLanAccessHint => '允许同局域网设备连接';
 
   @override
   String get gatewaySecuritySection => '访问鉴权';
@@ -196,13 +199,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get gatewayRequireAccessKey => '访问密钥保护';
 
   @override
-  String get gatewayRequireAccessKeyHint => '本机或受信任局域网默认关闭；开启后将校验 sk-flc- 密钥';
+  String get gatewayRequireAccessKeyHint => '启用后请求需携带访问密钥';
 
   @override
   String get gatewayLanRequireKey => '局域网请求校验密钥';
 
   @override
-  String get gatewayLanRequireKeyHint => '对来自局域网 IP 的客户端强制要求 sk-flc- 访问密钥';
+  String get gatewayLanRequireKeyHint => '要求局域网客户端提供访问密钥';
 
   @override
   String get gatewayLanNoIp => '当前未检测到局域网 IPv4 地址';
@@ -421,7 +424,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get pluginsMarketSearchHint => '搜索插件名称、包名或模型服务';
 
   @override
-  String get pluginsMarketChinaMirror => '国内镜像加速';
+  String get pluginsMarketChinaMirror => '国内镜像';
 
   @override
   String get pluginsMarketCategoryAll => '全部';
@@ -487,13 +490,25 @@ class AppLocalizationsZh extends AppLocalizations {
   String get pluginsSelectModels => '选择模型';
 
   @override
+  String get pluginsModelsRowLabel => '可用模型';
+
+  @override
+  String get pluginsActionSignInShort => '登录';
+
+  @override
+  String get pluginsAuthMethodBrowser => '浏览器授权登录';
+
+  @override
+  String get pluginsAuthMethodApiKey => 'API 密钥接入';
+
+  @override
   String pluginsSelectedModelsSummary(int count, int total) {
-    return '已选 $count / $total 个模型';
+    return '已选 $count/$total';
   }
 
   @override
   String pluginsAutoAllModels(int total) {
-    return '全部 $total 个可用（自动）';
+    return '全部 $total 个';
   }
 
   @override
@@ -613,6 +628,11 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String routingGroupDeleteConfirm(String name) {
     return '确认删除路由组“$name”吗？';
+  }
+
+  @override
+  String routingMembersSummary(int count, String strategy) {
+    return '$count 个目标 · $strategy';
   }
 
   @override
@@ -738,7 +758,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get playgroundPromptLabel => '测试提示词';
 
   @override
-  String get playgroundPromptDefault => '请用一句话回复：Falcon 网关连通正常。';
+  String get playgroundPromptDefault => '请简短回复：Falcon 网关连通正常。';
 
   @override
   String get playgroundSend => '发送请求';

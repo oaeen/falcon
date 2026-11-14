@@ -9,7 +9,6 @@ import '../widgets/confirm_dialog.dart';
 import '../widgets/falcon_card.dart';
 import '../widgets/falcon_row.dart';
 import '../widgets/sheet_frame.dart';
-import '../widgets/status_pill.dart';
 
 class ProviderEditorSheet extends ConsumerStatefulWidget {
   const ProviderEditorSheet({
@@ -481,11 +480,17 @@ class _ProviderEditorSheetState extends ConsumerState<ProviderEditorSheet> {
             const SizedBox(height: 10),
             Row(
               children: [
-                StatusPill(
-                  label: _testResult!.ok
+                Text(
+                  _testResult!.ok
                       ? l10n.providersTestPass(_testResult!.latencyMs)
                       : l10n.providersTestFail(_testResult!.statusCode),
-                  tone: _testResult!.ok ? StatusTone.success : StatusTone.danger,
+                  style: FalconTheme.tabular(
+                    TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: _testResult!.ok ? c.textSecondary : c.danger,
+                    ),
+                  ),
                 ),
                 if (_testResult!.error.isNotEmpty) ...[
                   const SizedBox(width: 8),

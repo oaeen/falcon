@@ -10,9 +10,8 @@ import '../widgets/falcon_card.dart';
 import '../widgets/falcon_row.dart';
 import '../widgets/gateway_offline_banner.dart';
 import '../widgets/responsive_body.dart';
+import '../widgets/segmented_track.dart';
 import '../widgets/sheet_frame.dart';
-import '../widgets/status_pill.dart';
-import 'playground_sheet.dart';
 import 'request_detail_sheet.dart';
 
 class MonitorScreen extends ConsumerWidget {
@@ -64,92 +63,56 @@ class MonitorScreen extends ConsumerWidget {
               const GatewayOfflineCard(),
               const SizedBox(height: 14),
             ],
-            Row(
+            FalconSegmentedTrack<String>(
+              expand: true,
+              segments: [
+                (value: 'today', label: l10n.monitorRangeToday),
+                (value: '7d', label: l10n.monitorRange7d),
+                (value: '30d', label: l10n.monitorRange30d),
+              ],
+              selected: range,
+              onChanged: (v) =>
+                  ref.read(usageRangeProvider.notifier).setRange(v),
+            ),
+            const SizedBox(height: 12),
+            Column(
               children: [
-                Expanded(
-                  child: SegmentedButton<String>(
-                    segments: [
-                      ButtonSegment(
-                        value: 'today',
-                        label: Text(l10n.monitorRangeToday),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _KpiCell(
+                        label: l10n.monitorKpiRequests,
+                        value: _formatCount(usage.requests),
                       ),
-                      ButtonSegment(
-                        value: '7d',
-                        label: Text(l10n.monitorRange7d),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _KpiCell(
+                        label: l10n.monitorKpiTokens,
+                        value: _formatCount(usage.totalTokens),
                       ),
-                      ButtonSegment(
-                        value: '30d',
-                        label: Text(l10n.monitorRange30d),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _KpiCell(
+                        label: l10n.monitorKpiSpend,
+                        value: '\$${usage.estimatedUsd.toStringAsFixed(3)}',
                       ),
-                    ],
-                    selected: {range},
-                    onSelectionChanged: (s) =>
-                        ref.read(usageRangeProvider.notifier).setRange(s.first),
-                  ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _KpiCell(
+                        label: l10n.monitorKpiTtft,
+                        value: '${usage.avgTtftMs} ms',
+                      ),
+                    ),
+                  ],
                 ),
               ],
-            ),
-            const SizedBox(height: 12),
-            FalconCard(
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: _KpiCell(
-                            label: l10n.monitorKpiRequests,
-                            value: _formatCount(usage.requests),
-                          ),
-                        ),
-                        Expanded(
-                          child: _KpiCell(
-                            label: l10n.monitorKpiTokens,
-                            value: _formatCount(usage.totalTokens),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const FalconDivider(indent: 0),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: _KpiCell(
-                            label: l10n.monitorKpiSpend,
-                            value: '\$${usage.estimatedUsd.toStringAsFixed(3)}',
-                          ),
-                        ),
-                        Expanded(
-                          child: _KpiCell(
-                            label: l10n.monitorKpiTtft,
-                            value: '${usage.avgTtftMs} ms',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              key: const ValueKey('open-playground-btn'),
-              onPressed: () => showFalconSheet<void>(
-                context: context,
-                builder: (_) => const PlaygroundSheet(),
-              ),
-              icon: const Icon(Icons.terminal_rounded, size: 18),
-              label: Text(l10n.monitorOpenPlayground),
             ),
             const SizedBox(height: 20),
             SectionHeader(
@@ -202,27 +165,34 @@ class _KpiCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = FalconColors.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(fontSize: 12, color: c.textSecondary),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: FalconTheme.tabular(
-            TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              color: c.textPrimary,
+    return Container(
+      decoration: BoxDecoration(
+        color: c.cardSubtle,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 12, color: c.textSecondary),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: FalconTheme.tabular(
+              TextStyle(
+                fontSize: 19,
+                fontWeight: FontWeight.w600,
+                color: c.textPrimary,
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -279,11 +249,17 @@ class _LogEntryRow extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                StatusPill(
-                  label: '${entry.statusCode}',
-                  tone: ok ? StatusTone.success : StatusTone.danger,
+                Text(
+                  '${entry.statusCode}',
+                  style: FalconTheme.tabular(
+                    TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: ok ? c.textSecondary : c.danger,
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   '${entry.ttftMs}ms · ${tokens}t',
                   style: FalconTheme.tabular(

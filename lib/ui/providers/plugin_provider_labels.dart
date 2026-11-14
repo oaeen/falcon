@@ -37,3 +37,22 @@ String localizedPluginProviderTitle(
       return detail.name.isNotEmpty ? detail.name : detail.id;
   }
 }
+
+/// Maps verbose or raw English plugin auth method labels into concise
+/// localized strings while preserving unknown plugin labels intact.
+String localizedPluginAuthMethodLabel(
+  AppLocalizations l10n,
+  PluginAuthMethod method,
+) {
+  final raw = method.label.trim();
+  final lower = raw.toLowerCase();
+  if (lower.contains('api key') || lower.contains('api_key')) {
+    return l10n.pluginsAuthMethodApiKey;
+  }
+  if (lower.contains('browser') ||
+      lower.contains('workbuddy account') ||
+      lower.contains('oauth')) {
+    return l10n.pluginsAuthMethodBrowser;
+  }
+  return raw;
+}

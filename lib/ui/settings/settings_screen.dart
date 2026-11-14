@@ -95,7 +95,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
           children: [
             SectionHeader(title: l10n.settingsKeepAliveSection),
-            if (runtime.isAndroid)
+            if (runtime.isAndroid) ...[
               FalconCard(
                 key: const ValueKey('keepalive-android-card'),
                 child: Column(
@@ -110,7 +110,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           .read(gatewayRuntimeProvider.notifier)
                           .requestBatteryExemption(),
                     ),
-                    const FalconDivider(),
+                    const FalconDivider.icon(),
                     FalconRow(
                       icon: Icons.tune_rounded,
                       title: l10n.settingsAppBatterySettings,
@@ -118,7 +118,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           .read(gatewayRuntimeProvider.notifier)
                           .openAppBatterySettings(),
                     ),
-                    const FalconDivider(),
+                    const FalconDivider.icon(),
                     FalconRow(
                       icon: Icons.notifications_none_rounded,
                       title: l10n.settingsNotificationPermission,
@@ -129,7 +129,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           .read(gatewayRuntimeProvider.notifier)
                           .requestNotificationPermission(),
                     ),
-                    const FalconDivider(),
+                    const FalconDivider.icon(),
                     FalconRow(
                       icon: Icons.power_settings_new_rounded,
                       title: l10n.settingsBootAutoStart,
@@ -140,7 +140,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             .setStartOnBoot(v),
                       ),
                     ),
-                    const FalconDivider(),
+                    const FalconDivider.icon(),
                     FalconRow(
                       icon: Icons.memory_rounded,
                       title: l10n.settingsWakeLock,
@@ -148,7 +148,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           ? l10n.statusEnabled
                           : l10n.statusDisabled,
                     ),
-                    const FalconDivider(),
+                    const FalconDivider.icon(),
                     FalconRow(
                       icon: Icons.wifi_rounded,
                       title: l10n.settingsWifiLock,
@@ -156,22 +156,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           ? l10n.statusEnabled
                           : l10n.statusDisabled,
                     ),
-                    const FalconDivider(),
-                    Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Text(
-                        l10n.settingsOemGuidance,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          color: c.textSecondary,
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
-              )
-            else if (runtime.isIos)
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
+                child: Text(
+                  l10n.settingsOemGuidance,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: c.textMuted,
+                    height: 1.45,
+                  ),
+                ),
+              ),
+            ] else if (runtime.isIos) ...[
               FalconCard(
                 key: const ValueKey('keepalive-ios-card'),
                 child: Column(
@@ -188,7 +187,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             .setIosBackgroundAudioKeepAlive(v),
                       ),
                     ),
-                    const FalconDivider(),
+                    const FalconDivider.icon(),
                     FalconRow(
                       icon: Icons.brightness_high_outlined,
                       title: l10n.settingsIosKeepScreenAwake,
@@ -201,7 +200,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             .setKeepScreenAwake(v),
                       ),
                     ),
-                    const FalconDivider(),
+                    const FalconDivider.icon(),
                     FalconRow(
                       icon: Icons.notifications_none_rounded,
                       title: l10n.settingsNotificationPermission,
@@ -212,22 +211,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           .read(gatewayRuntimeProvider.notifier)
                           .requestNotificationPermission(),
                     ),
-                    const FalconDivider(),
-                    Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Text(
-                        l10n.settingsIosLocalNetworkGuidance,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          color: c.textSecondary,
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
-              )
-            else
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
+                child: Text(
+                  l10n.settingsIosLocalNetworkGuidance,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: c.textMuted,
+                    height: 1.45,
+                  ),
+                ),
+              ),
+            ] else ...[
               FalconCard(
                 key: const ValueKey('keepalive-desktop-card'),
                 child: Column(
@@ -239,7 +237,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       monoValue: true,
                     ),
                     if (snapshot.status.pluginRuntimeMode != null) ...[
-                      const FalconDivider(),
+                      const FalconDivider.icon(),
                       FalconRow(
                         icon: Icons.extension_outlined,
                         title: l10n.settingsPluginRuntimeMode,
@@ -247,119 +245,83 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         monoValue: true,
                       ),
                     ],
-                    const FalconDivider(),
-                    Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Text(
-                        l10n.settingsDesktopProcessGuidance,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          color: c.textSecondary,
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
+                child: Text(
+                  l10n.settingsDesktopProcessGuidance,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: c.textMuted,
+                    height: 1.45,
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 20),
             SectionHeader(title: l10n.settingsNetworkSection),
             FalconCard(
+              child: FalconRow(
+                icon: Icons.public_outlined,
+                title: l10n.settingsChinaMirror,
+                trailing: Switch(
+                  value: snapshot.settings.chinaMirror,
+                  onChanged: runtime.running
+                      ? (v) => ref
+                          .read(gatewayAdminStateProvider.notifier)
+                          .updateSettings({'chinaMirror': v})
+                      : null,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            FalconCard(
+              padding: const EdgeInsets.all(14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  FalconRow(
-                    icon: Icons.wifi_tethering_outlined,
-                    title: l10n.gatewayLanAccess,
-                    trailing: Switch(
-                      value: snapshot.settings.lanEnabled,
-                      onChanged: runtime.running
-                          ? (v) => ref
-                              .read(gatewayAdminStateProvider.notifier)
-                              .updateSettings({'lanEnabled': v})
-                          : null,
+                  TextField(
+                    controller: _portCtrl,
+                    keyboardType: TextInputType.number,
+                    style: FalconTheme.tabular(null),
+                    decoration: InputDecoration(
+                      labelText: l10n.settingsPort,
+                      hintText: l10n.settingsPortHint,
                     ),
+                    onChanged: (_) => setState(() => _networkDirty = true),
                   ),
-                  const FalconDivider(),
-                  FalconRow(
-                    icon: Icons.lock_open_outlined,
-                    title: l10n.gatewayLocalKeyless,
-                    trailing: Switch(
-                      value: snapshot.settings.allowLocalKeyless,
-                      onChanged: runtime.running
-                          ? (v) => ref
-                              .read(gatewayAdminStateProvider.notifier)
-                              .updateSettings({'allowLocalKeyless': v})
-                          : null,
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _allowIpsCtrl,
+                    style: FalconTheme.mono(context, fontSize: 13),
+                    decoration: InputDecoration(
+                      labelText: l10n.settingsAllowIps,
+                      hintText: l10n.settingsAllowIpsHint,
                     ),
+                    onChanged: (_) => setState(() => _networkDirty = true),
                   ),
-                  const FalconDivider(),
-                  FalconRow(
-                    icon: Icons.public_outlined,
-                    title: l10n.settingsChinaMirror,
-                    trailing: Switch(
-                      value: snapshot.settings.chinaMirror,
-                      onChanged: runtime.running
-                          ? (v) => ref
-                              .read(gatewayAdminStateProvider.notifier)
-                              .updateSettings({'chinaMirror': v})
-                          : null,
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _corsCtrl,
+                    style: FalconTheme.mono(context, fontSize: 13),
+                    decoration: InputDecoration(
+                      labelText: l10n.settingsCorsOrigins,
+                      hintText: l10n.settingsCorsOriginsHint,
                     ),
+                    onChanged: (_) => setState(() => _networkDirty = true),
                   ),
-                  const FalconDivider(),
-                  Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        TextField(
-                          controller: _portCtrl,
-                          keyboardType: TextInputType.number,
-                          style: FalconTheme.tabular(null),
-                          decoration: InputDecoration(
-                            labelText: l10n.settingsPort,
-                            hintText: l10n.settingsPortHint,
-                          ),
-                          onChanged: (_) =>
-                              setState(() => _networkDirty = true),
-                        ),
-                        const SizedBox(height: 10),
-                        TextField(
-                          controller: _allowIpsCtrl,
-                          style: FalconTheme.mono(context, fontSize: 13),
-                          decoration: InputDecoration(
-                            labelText: l10n.settingsAllowIps,
-                            hintText: l10n.settingsAllowIpsHint,
-                          ),
-                          onChanged: (_) =>
-                              setState(() => _networkDirty = true),
-                        ),
-                        const SizedBox(height: 10),
-                        TextField(
-                          controller: _corsCtrl,
-                          style: FalconTheme.mono(context, fontSize: 13),
-                          decoration: InputDecoration(
-                            labelText: l10n.settingsCorsOrigins,
-                            hintText: l10n.settingsCorsOriginsHint,
-                          ),
-                          onChanged: (_) =>
-                              setState(() => _networkDirty = true),
-                        ),
-                        if (_networkDirty) ...[
-                          const SizedBox(height: 12),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: FilledButton(
-                              onPressed: runtime.running
-                                  ? _saveNetworkSettings
-                                  : null,
-                              child: Text(l10n.actionSave),
-                            ),
-                          ),
-                        ],
-                      ],
+                  if (_networkDirty) ...[
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: FilledButton(
+                        onPressed: runtime.running ? _saveNetworkSettings : null,
+                        child: Text(l10n.actionSave),
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -377,13 +339,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           setState(() => _includeSecretsInExport = v),
                     ),
                   ),
-                  const FalconDivider(),
+                  const FalconDivider.icon(),
                   FalconRow(
                     icon: Icons.upload_file_outlined,
                     title: l10n.settingsBackupExport,
                     onTap: runtime.running ? _exportBackup : null,
                   ),
-                  const FalconDivider(),
+                  const FalconDivider.icon(),
                   FalconRow(
                     icon: Icons.download_outlined,
                     title: l10n.settingsBackupImport,
@@ -406,6 +368,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     icon: Icons.palette_outlined,
                     title: l10n.settingsThemeMode,
                     trailing: DropdownButton<ThemeMode>(
+                      isDense: true,
                       value: prefs.themeMode,
                       underline: const SizedBox.shrink(),
                       items: [
@@ -431,11 +394,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       },
                     ),
                   ),
-                  const FalconDivider(),
+                  const FalconDivider.icon(),
                   FalconRow(
                     icon: Icons.translate_rounded,
                     title: l10n.settingsLanguage,
                     trailing: DropdownButton<String>(
+                      isDense: true,
                       value: prefs.locale.languageCode,
                       underline: const SizedBox.shrink(),
                       items: [

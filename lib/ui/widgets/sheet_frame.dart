@@ -51,17 +51,17 @@ class FalconSheetFrame extends StatelessWidget {
           children: [
             Center(
               child: Container(
-                margin: const EdgeInsets.only(top: 12, bottom: 6),
-                width: 40,
+                margin: const EdgeInsets.only(top: 10, bottom: 6),
+                width: 32,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: c.textMuted.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(FalconTheme.pillRadius),
+                  color: c.textMuted.withValues(alpha: 0.35),
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 6, 12, 12),
+              padding: const EdgeInsets.fromLTRB(20, 4, 12, 6),
               child: Row(
                 children: [
                   Expanded(
@@ -71,17 +71,21 @@ class FalconSheetFrame extends StatelessWidget {
                       children: [
                         Text(
                           title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 18,
+                            fontSize: 17.5,
                             fontWeight: FontWeight.w700,
                             letterSpacing: -0.2,
                             color: c.textPrimary,
                           ),
                         ),
                         if (subtitle != null && subtitle!.isNotEmpty) ...[
-                          const SizedBox(height: 3),
+                          const SizedBox(height: 2),
                           Text(
                             subtitle!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 12.5,
                               color: c.textSecondary,
@@ -100,20 +104,17 @@ class FalconSheetFrame extends StatelessWidget {
                 ],
               ),
             ),
-            Divider(height: FalconTheme.borderWidth, color: c.border),
             Flexible(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
                 child: child,
               ),
             ),
-            if (footer != null) ...[
-              Divider(height: FalconTheme.borderWidth, color: c.border),
+            if (footer != null)
               Padding(
-                padding: const EdgeInsets.fromLTRB(18, 12, 18, 14),
+                padding: const EdgeInsets.fromLTRB(20, 6, 20, 14),
                 child: footer!,
               ),
-            ],
           ],
         ),
       ),

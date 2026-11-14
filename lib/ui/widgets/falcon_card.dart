@@ -55,16 +55,15 @@ class SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = FalconColors.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(6, 0, 4, 10),
+      padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
       child: Row(
         children: [
           Expanded(
             child: Text(
               title,
               style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.15,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
                 color: c.textSecondary,
               ),
               maxLines: 1,

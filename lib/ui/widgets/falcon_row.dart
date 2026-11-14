@@ -3,18 +3,28 @@ import 'package:flutter/material.dart';
 import '../../theme/falcon_theme.dart';
 
 class FalconDivider extends StatelessWidget {
-  const FalconDivider({super.key, this.indent = 16});
+  const FalconDivider({
+    super.key,
+    this.indent = 16,
+    this.endIndent = 16,
+  });
+
+  const FalconDivider.icon({super.key})
+      : indent = 48,
+        endIndent = 16;
 
   final double indent;
+  final double endIndent;
 
   @override
   Widget build(BuildContext context) {
     final c = FalconColors.of(context);
     return Divider(
-      height: FalconTheme.borderWidth,
-      thickness: FalconTheme.borderWidth,
+      height: 1,
+      thickness: 0.7,
       indent: indent,
-      color: c.border,
+      endIndent: endIndent,
+      color: c.border.withValues(alpha: 0.65),
     );
   }
 }
@@ -59,15 +69,18 @@ class FalconRow extends StatelessWidget {
       child: ConstrainedBox(
         constraints: BoxConstraints(minHeight: hasSubtitle ? 60 : 50),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          padding: EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: hasSubtitle ? 10 : 9,
+          ),
           child: Row(
             children: [
               if (icon != null) ...[
                 SizedBox(
-                  width: 24,
+                  width: 22,
                   child: Icon(
                     icon,
-                    size: 20,
+                    size: 19,
                     color: danger ? c.danger : c.textSecondary,
                   ),
                 ),

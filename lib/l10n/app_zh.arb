@@ -56,15 +56,16 @@
   "gatewayNotifGrant": "开启通知",
   "gatewayEndpointsSection": "访问端点",
   "gatewayLoopbackLabel": "本机端点",
+  "gatewayLanUrlLabel": "局域网地址",
   "gatewayLocalKeyless": "本机免密访问",
-  "gatewayLocalKeylessHint": "仅 127.0.0.1 本机请求可免密钥访问",
+  "gatewayLocalKeylessHint": "仅本机 127.0.0.1 请求免密钥",
   "gatewayLanAccess": "局域网访问",
-  "gatewayLanAccessHint": "开放同局域网设备访问当前端口",
+  "gatewayLanAccessHint": "允许同局域网设备连接",
   "gatewaySecuritySection": "访问鉴权",
   "gatewayRequireAccessKey": "访问密钥保护",
-  "gatewayRequireAccessKeyHint": "本机或受信任局域网默认关闭；开启后将校验 sk-flc- 密钥",
+  "gatewayRequireAccessKeyHint": "启用后请求需携带访问密钥",
   "gatewayLanRequireKey": "局域网请求校验密钥",
-  "gatewayLanRequireKeyHint": "对来自局域网 IP 的客户端强制要求 sk-flc- 访问密钥",
+  "gatewayLanRequireKeyHint": "要求局域网客户端提供访问密钥",
   "gatewayLanNoIp": "当前未检测到局域网 IPv4 地址",
   "gatewayClientExamples": "客户端接入示例",
   "gatewayClientExamplesTitle": "客户端接入示例",
@@ -181,7 +182,7 @@
   },
   "pluginsMarketTitle": "插件目录",
   "pluginsMarketSearchHint": "搜索插件名称、包名或模型服务",
-  "pluginsMarketChinaMirror": "国内镜像加速",
+  "pluginsMarketChinaMirror": "国内镜像",
   "pluginsMarketCategoryAll": "全部",
   "pluginsMarketCategoryAuth": "订阅认证",
   "pluginsMarketCategoryMiddleware": "请求中间件",
@@ -203,14 +204,18 @@
   "pluginsSignInSuccess": "认证已完成",
   "pluginsSignInFailed": "认证未完成",
   "pluginsSelectModels": "选择模型",
-  "pluginsSelectedModelsSummary": "已选 {count} / {total} 个模型",
+  "pluginsModelsRowLabel": "可用模型",
+  "pluginsActionSignInShort": "登录",
+  "pluginsAuthMethodBrowser": "浏览器授权登录",
+  "pluginsAuthMethodApiKey": "API 密钥接入",
+  "pluginsSelectedModelsSummary": "已选 {count}/{total}",
   "@pluginsSelectedModelsSummary": {
     "placeholders": {
       "count": { "type": "int" },
       "total": { "type": "int" }
     }
   },
-  "pluginsAutoAllModels": "全部 {total} 个可用（自动）",
+  "pluginsAutoAllModels": "全部 {total} 个",
   "@pluginsAutoAllModels": {
     "placeholders": {
       "total": { "type": "int" }
@@ -260,6 +265,13 @@
       "name": { "type": "String" }
     }
   },
+  "routingMembersSummary": "{count} 个目标 · {strategy}",
+  "@routingMembersSummary": {
+    "placeholders": {
+      "count": { "type": "int" },
+      "strategy": { "type": "String" }
+    }
+  },
   "routingAliasesEmpty": "尚未配置模型映射",
   "routingAliasesEmptyHint": "将客户端请求的模型名重写为指定的上游渠道模型或路由组。",
   "routingAliasAdd": "新建映射",
@@ -305,7 +317,7 @@
   "playgroundKeyCustom": "手动输入密钥",
   "playgroundKeyCustomHint": "粘贴完整 sk-flc- 访问密钥",
   "playgroundPromptLabel": "测试提示词",
-  "playgroundPromptDefault": "请用一句话回复：Falcon 网关连通正常。",
+  "playgroundPromptDefault": "请简短回复：Falcon 网关连通正常。",
   "playgroundSend": "发送请求",
   "playgroundSending": "生成中...",
   "playgroundStop": "停止",

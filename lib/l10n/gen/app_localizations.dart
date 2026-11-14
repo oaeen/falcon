@@ -434,6 +434,12 @@ abstract class AppLocalizations {
   /// **'本机端点'**
   String get gatewayLoopbackLabel;
 
+  /// No description provided for @gatewayLanUrlLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'局域网地址'**
+  String get gatewayLanUrlLabel;
+
   /// No description provided for @gatewayLocalKeyless.
   ///
   /// In zh, this message translates to:
@@ -443,7 +449,7 @@ abstract class AppLocalizations {
   /// No description provided for @gatewayLocalKeylessHint.
   ///
   /// In zh, this message translates to:
-  /// **'仅 127.0.0.1 本机请求可免密钥访问'**
+  /// **'仅本机 127.0.0.1 请求免密钥'**
   String get gatewayLocalKeylessHint;
 
   /// No description provided for @gatewayLanAccess.
@@ -455,7 +461,7 @@ abstract class AppLocalizations {
   /// No description provided for @gatewayLanAccessHint.
   ///
   /// In zh, this message translates to:
-  /// **'开放同局域网设备访问当前端口'**
+  /// **'允许同局域网设备连接'**
   String get gatewayLanAccessHint;
 
   /// No description provided for @gatewaySecuritySection.
@@ -473,7 +479,7 @@ abstract class AppLocalizations {
   /// No description provided for @gatewayRequireAccessKeyHint.
   ///
   /// In zh, this message translates to:
-  /// **'本机或受信任局域网默认关闭；开启后将校验 sk-flc- 密钥'**
+  /// **'启用后请求需携带访问密钥'**
   String get gatewayRequireAccessKeyHint;
 
   /// No description provided for @gatewayLanRequireKey.
@@ -485,7 +491,7 @@ abstract class AppLocalizations {
   /// No description provided for @gatewayLanRequireKeyHint.
   ///
   /// In zh, this message translates to:
-  /// **'对来自局域网 IP 的客户端强制要求 sk-flc- 访问密钥'**
+  /// **'要求局域网客户端提供访问密钥'**
   String get gatewayLanRequireKeyHint;
 
   /// No description provided for @gatewayLanNoIp.
@@ -881,7 +887,7 @@ abstract class AppLocalizations {
   /// No description provided for @pluginsMarketChinaMirror.
   ///
   /// In zh, this message translates to:
-  /// **'国内镜像加速'**
+  /// **'国内镜像'**
   String get pluginsMarketChinaMirror;
 
   /// No description provided for @pluginsMarketCategoryAll.
@@ -1010,16 +1016,40 @@ abstract class AppLocalizations {
   /// **'选择模型'**
   String get pluginsSelectModels;
 
+  /// No description provided for @pluginsModelsRowLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'可用模型'**
+  String get pluginsModelsRowLabel;
+
+  /// No description provided for @pluginsActionSignInShort.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录'**
+  String get pluginsActionSignInShort;
+
+  /// No description provided for @pluginsAuthMethodBrowser.
+  ///
+  /// In zh, this message translates to:
+  /// **'浏览器授权登录'**
+  String get pluginsAuthMethodBrowser;
+
+  /// No description provided for @pluginsAuthMethodApiKey.
+  ///
+  /// In zh, this message translates to:
+  /// **'API 密钥接入'**
+  String get pluginsAuthMethodApiKey;
+
   /// No description provided for @pluginsSelectedModelsSummary.
   ///
   /// In zh, this message translates to:
-  /// **'已选 {count} / {total} 个模型'**
+  /// **'已选 {count}/{total}'**
   String pluginsSelectedModelsSummary(int count, int total);
 
   /// No description provided for @pluginsAutoAllModels.
   ///
   /// In zh, this message translates to:
-  /// **'全部 {total} 个可用（自动）'**
+  /// **'全部 {total} 个'**
   String pluginsAutoAllModels(int total);
 
   /// No description provided for @pluginsTestInPlayground.
@@ -1255,6 +1285,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'确认删除路由组“{name}”吗？'**
   String routingGroupDeleteConfirm(String name);
+
+  /// No description provided for @routingMembersSummary.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 个目标 · {strategy}'**
+  String routingMembersSummary(int count, String strategy);
 
   /// No description provided for @routingAliasesEmpty.
   ///
@@ -1499,7 +1535,7 @@ abstract class AppLocalizations {
   /// No description provided for @playgroundPromptDefault.
   ///
   /// In zh, this message translates to:
-  /// **'请用一句话回复：Falcon 网关连通正常。'**
+  /// **'请简短回复：Falcon 网关连通正常。'**
   String get playgroundPromptDefault;
 
   /// No description provided for @playgroundSend.

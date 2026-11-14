@@ -12,7 +12,6 @@ import '../widgets/falcon_card.dart';
 import '../widgets/falcon_row.dart';
 import '../widgets/responsive_body.dart';
 import '../widgets/sheet_frame.dart';
-import '../widgets/status_pill.dart';
 import 'access_key_sheet.dart';
 import 'client_examples_sheet.dart';
 
@@ -176,7 +175,7 @@ class GatewayScreen extends ConsumerWidget {
                     ),
                     onTap: () => _copyEndpoint(context, loopbackUrl),
                   ),
-                  const FalconDivider(),
+                  const FalconDivider.icon(),
                   FalconRow(
                     icon: Icons.wifi_tethering_outlined,
                     title: l10n.gatewayLanAccess,
@@ -193,18 +192,18 @@ class GatewayScreen extends ConsumerWidget {
                   ),
                   if (snapshot.settings.lanEnabled) ...[
                     if (lanUrls.isEmpty) ...[
-                      const FalconDivider(),
+                      const FalconDivider.icon(),
                       FalconRow(
                         icon: Icons.info_outline_rounded,
                         title: l10n.gatewayLanNoIp,
                       ),
                     ] else
                       for (final url in lanUrls) ...[
-                        const FalconDivider(),
+                        const FalconDivider.icon(),
                         FalconRow(
                           icon: Icons.lan_outlined,
-                          title: url,
-                          monoTitle: true,
+                          title: l10n.gatewayLanUrlLabel,
+                          subtitle: url,
                           trailing: IconButton(
                             icon: const Icon(Icons.copy_outlined, size: 18),
                             tooltip: l10n.actionCopy,
@@ -213,7 +212,7 @@ class GatewayScreen extends ConsumerWidget {
                           onTap: () => _copyEndpoint(context, url),
                         ),
                       ],
-                    const FalconDivider(),
+                    const FalconDivider.icon(),
                     FalconRow(
                       icon: Icons.shield_outlined,
                       title: l10n.gatewayLanRequireKey,
@@ -390,209 +389,165 @@ class _HeroMascotCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final c = FalconColors.of(context);
-    final keepAliveLabels = <String>[
-      if (running && runtime.isAndroid) l10n.gatewayBadgeForeground,
-      if (runtime.isAndroid && runtime.wakeLockHeld) l10n.gatewayBadgeWakeLock,
-      if (runtime.isAndroid && runtime.wifiLockHeld) l10n.gatewayBadgeWifiLock,
-      if (running && runtime.isIos && runtime.backgroundAudioKeepAlive)
-        l10n.gatewayBadgeAudioKeepAlive,
-      if (running && runtime.isDesktop) l10n.gatewayBadgeDesktopProcess,
-    ];
+    final primaryBadge = !running
+        ? null
+        : runtime.isAndroid
+            ? l10n.gatewayBadgeForeground
+            : runtime.isIos && runtime.backgroundAudioKeepAlive
+                ? l10n.gatewayBadgeAudioKeepAlive
+                : runtime.isDesktop
+                    ? l10n.gatewayBadgeDesktopProcess
+                    : null;
 
-    return FalconCard(
-      radius: FalconTheme.heroRadius,
-      backgroundColor: c.card,
-      padding: const EdgeInsets.all(18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 2, 2, 14),
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               SizedBox(
                 key: const ValueKey('hero-mascot-avatar'),
-                width: 52,
-                height: 52,
+                width: 48,
+                height: 48,
                 child: Image.asset(
                   'assets/branding/falcon_mascot.png',
                   fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
                   errorBuilder: (_, _, _) => Center(
                     child: Icon(
                       Icons.bolt_rounded,
-                      size: 30,
+                      size: 28,
                       color: running ? c.accent : c.warm,
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text(
+                      l10n.appName,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.4,
+                        color: c.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
                     Row(
                       children: [
                         Text(
-                          l10n.appName,
+                          running ? l10n.statusRunning : l10n.statusStopped,
                           style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -0.3,
-                            color: c.textPrimary,
+                            fontSize: 13,
+                            fontWeight:
+                                running ? FontWeight.w600 : FontWeight.w500,
+                            color: running ? c.textPrimary : c.textSecondary,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        StatusPill(
-                          label: running
-                              ? l10n.statusRunning
-                              : l10n.statusStopped,
-                          tone: running
-                              ? StatusTone.success
-                              : StatusTone.neutral,
-                        ),
+                        if (primaryBadge != null)
+                          Flexible(
+                            child: Text(
+                              ' · $primaryBadge',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                color: c.textSecondary,
+                              ),
+                            ),
+                          ),
                       ],
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      running
-                          ? l10n.gatewayHeroSubtitleRunning
-                          : l10n.gatewayHeroSubtitleStopped,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        color: c.textSecondary,
-                      ),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
+              Switch(
+                key: const ValueKey('gateway-service-toggle-btn'),
+                value: running,
+                onChanged: (_) => onToggle(),
+              ),
             ],
           ),
-          if (keepAliveLabels.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Icon(
-                  Icons.verified_user_outlined,
-                  size: 14,
-                  color: c.accent,
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    keepAliveLabels.join(' · '),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: c.textSecondary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-          const SizedBox(height: 14),
-          Row(
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: c.cardSubtle,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+          child: Row(
             children: [
               Expanded(
-                child: _StatTile(
-                  icon: Icons.schedule_rounded,
+                child: _InlineMetric(
+                  value: running ? uptimeText : '--:--:--',
                   label: l10n.gatewayUptime,
-                  value: uptimeText,
                 ),
               ),
-              const SizedBox(width: 8),
               Expanded(
-                child: _StatTile(
-                  icon: Icons.widgets_outlined,
-                  label: l10n.gatewayModelsCount,
+                child: _InlineMetric(
                   value: '$modelCount',
+                  label: l10n.gatewayModelsCount,
                 ),
               ),
-              const SizedBox(width: 8),
               Expanded(
-                child: _StatTile(
-                  icon: Icons.hub_outlined,
-                  label: l10n.gatewayProvidersCount,
+                child: _InlineMetric(
                   value: '$activeProviders',
+                  label: l10n.gatewayProvidersCount,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          SizedBox(
-            height: 48,
-            child: running
-                ? FilledButton.tonalIcon(
-                    key: const ValueKey('gateway-service-toggle-btn'),
-                    onPressed: onToggle,
-                    icon: const Icon(Icons.stop_rounded, size: 20),
-                    label: Text(l10n.gatewayActionStop),
-                  )
-                : FilledButton.icon(
-                    key: const ValueKey('gateway-service-toggle-btn'),
-                    onPressed: onToggle,
-                    icon: const Icon(Icons.play_arrow_rounded, size: 22),
-                    label: Text(l10n.gatewayActionStart),
-                  ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
-class _StatTile extends StatelessWidget {
-  const _StatTile({
-    required this.icon,
-    required this.label,
+class _InlineMetric extends StatelessWidget {
+  const _InlineMetric({
     required this.value,
+    required this.label,
   });
 
-  final IconData icon;
-  final String label;
   final String value;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
     final c = FalconColors.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-      decoration: BoxDecoration(
-        color: c.cardSubtle,
-        borderRadius: BorderRadius.circular(18),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Row(
-            children: [
-              Icon(icon, size: 13.5, color: c.textMuted),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 11.5, color: c.textSecondary),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
           Text(
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: FalconTheme.tabular(
               TextStyle(
-                fontSize: 16.5,
-                fontWeight: FontWeight.w700,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
                 color: c.textPrimary,
               ),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11.5,
+              color: c.textSecondary,
             ),
           ),
         ],
@@ -622,12 +577,12 @@ class _PermissionBanner extends StatelessWidget {
     return FalconCard(
       backgroundColor: c.cardSubtle,
       borderColor: c.border,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(icon, size: 20, color: c.textPrimary),
-          const SizedBox(width: 12),
+          Icon(icon, size: 19, color: c.textSecondary),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -640,11 +595,13 @@ class _PermissionBanner extends StatelessWidget {
                     color: c.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 1),
                 Text(
                   body,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 12.5,
+                    fontSize: 12,
                     color: c.textSecondary,
                     height: 1.35,
                   ),
@@ -652,8 +609,8 @@ class _PermissionBanner extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          OutlinedButton(
+          const SizedBox(width: 4),
+          TextButton(
             onPressed: onAction,
             child: Text(actionLabel),
           ),

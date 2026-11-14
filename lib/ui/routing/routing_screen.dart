@@ -9,8 +9,8 @@ import '../widgets/falcon_card.dart';
 import '../widgets/falcon_row.dart';
 import '../widgets/gateway_offline_banner.dart';
 import '../widgets/responsive_body.dart';
+import '../widgets/segmented_track.dart';
 import '../widgets/sheet_frame.dart';
-import '../widgets/status_pill.dart';
 import 'alias_editor_sheet.dart';
 import 'group_editor_sheet.dart';
 
@@ -56,39 +56,80 @@ class _RoutingScreenState extends ConsumerState<RoutingScreen> {
               const GatewayOfflineCard(),
               const SizedBox(height: 14),
             ],
-            SegmentedButton<_RoutingSegment>(
-              segments: [
-                ButtonSegment(
-                  value: _RoutingSegment.groups,
-                  label: Text(l10n.routingSegmentGroups),
+            Row(
+              children: [
+                FalconSegmentedTrack<_RoutingSegment>(
+                  segments: [
+                    (
+                      value: _RoutingSegment.groups,
+                      label: l10n.routingSegmentGroups,
+                    ),
+                    (
+                      value: _RoutingSegment.aliases,
+                      label: l10n.routingSegmentAliases,
+                    ),
+                  ],
+                  selected: _segment,
+                  onChanged: (s) => setState(() => _segment = s),
                 ),
-                ButtonSegment(
-                  value: _RoutingSegment.aliases,
-                  label: Text(l10n.routingSegmentAliases),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: _segment == _RoutingSegment.groups
+                          ? TextButton.icon(
+                              key: const ValueKey('add-group-btn'),
+                              style: TextButton.styleFrom(
+                                minimumSize: const Size(0, 34),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                ),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              onPressed: runtimeRunning
+                                  ? () => showFalconSheet<bool>(
+                                        context: context,
+                                        builder: (_) => GroupEditorSheet(
+                                          availableMembers:
+                                              snapshot.availableTargets,
+                                        ),
+                                      )
+                                  : null,
+                              icon: const Icon(Icons.add_rounded, size: 17),
+                              label: Text(l10n.routingGroupAdd),
+                            )
+                          : TextButton.icon(
+                              key: const ValueKey('add-alias-btn'),
+                              style: TextButton.styleFrom(
+                                minimumSize: const Size(0, 34),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                ),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              onPressed: runtimeRunning
+                                  ? () => showFalconSheet<bool>(
+                                        context: context,
+                                        builder: (_) => AliasEditorSheet(
+                                          existingAliases: snapshot.aliases,
+                                          availableTargets:
+                                              snapshot.availableTargets,
+                                        ),
+                                      )
+                                  : null,
+                              icon: const Icon(Icons.add_rounded, size: 17),
+                              label: Text(l10n.routingAliasAdd),
+                            ),
+                    ),
+                  ),
                 ),
               ],
-              selected: {_segment},
-              onSelectionChanged: (s) => setState(() => _segment = s.first),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
             if (_segment == _RoutingSegment.groups) ...[
-              Align(
-                alignment: Alignment.centerRight,
-                child: FilledButton.icon(
-                  key: const ValueKey('add-group-btn'),
-                  onPressed: runtimeRunning
-                      ? () => showFalconSheet<bool>(
-                            context: context,
-                            builder: (_) => GroupEditorSheet(
-                              availableMembers: snapshot.availableTargets,
-                            ),
-                          )
-                      : null,
-                  icon: const Icon(Icons.add_rounded, size: 17),
-                  label: Text(l10n.routingGroupAdd),
-                ),
-              ),
-              const SizedBox(height: 12),
               if (snapshot.groups.isEmpty)
                 FalconCard(
                   padding: const EdgeInsets.all(18),
@@ -151,24 +192,6 @@ class _RoutingScreenState extends ConsumerState<RoutingScreen> {
                   ),
                 ),
             ] else ...[
-              Align(
-                alignment: Alignment.centerRight,
-                child: FilledButton.icon(
-                  key: const ValueKey('add-alias-btn'),
-                  onPressed: runtimeRunning
-                      ? () => showFalconSheet<bool>(
-                            context: context,
-                            builder: (_) => AliasEditorSheet(
-                              existingAliases: snapshot.aliases,
-                              availableTargets: snapshot.availableTargets,
-                            ),
-                          )
-                      : null,
-                  icon: const Icon(Icons.add_rounded, size: 17),
-                  label: Text(l10n.routingAliasAdd),
-                ),
-              ),
-              const SizedBox(height: 12),
               if (snapshot.aliases.isEmpty)
                 FalconCard(
                   padding: const EdgeInsets.all(18),
@@ -248,7 +271,12 @@ class _GroupRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final c = FalconColors.of(context);
+    final summary = l10n.routingMembersSummary(
+      group.members.length,
+      group.strategy,
+    );
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -259,22 +287,15 @@ class _GroupRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Text(
-                        group.name,
-                        style: FalconTheme.mono(context, fontSize: 14),
-                      ),
-                      StatusPill(label: group.strategy, tone: StatusTone.accent),
-                    ],
+                  Text(
+                    group.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: FalconTheme.mono(context, fontSize: 14),
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    '${group.members.length} members'
-                    '${group.pinnedMember.isNotEmpty ? ' · pin: ${group.pinnedMember}' : ''}',
+                    '$summary${group.pinnedMember.isNotEmpty ? ' · ${group.pinnedMember}' : ''}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: FalconTheme.tabular(

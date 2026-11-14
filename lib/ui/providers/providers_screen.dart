@@ -11,8 +11,8 @@ import '../widgets/falcon_card.dart';
 import '../widgets/falcon_row.dart';
 import '../widgets/gateway_offline_banner.dart';
 import '../widgets/responsive_body.dart';
+import '../widgets/segmented_track.dart';
 import '../widgets/sheet_frame.dart';
-import '../widgets/status_pill.dart';
 import 'plugin_market_sheet.dart';
 import 'plugin_models_sheet.dart';
 import 'plugin_provider_labels.dart';
@@ -124,54 +124,135 @@ class _ProvidersScreenState extends ConsumerState<ProvidersScreen> {
               const GatewayOfflineCard(),
               const SizedBox(height: 14),
             ],
-            SegmentedButton<_ProvidersSegment>(
-              segments: [
-                ButtonSegment(
-                  value: _ProvidersSegment.api,
-                  label: Text(l10n.providersSegmentApi),
+            Row(
+              children: [
+                FalconSegmentedTrack<_ProvidersSegment>(
+                  segments: [
+                    (
+                      value: _ProvidersSegment.api,
+                      label: l10n.providersSegmentApi,
+                    ),
+                    (
+                      value: _ProvidersSegment.plugins,
+                      label: l10n.providersSegmentPlugins,
+                    ),
+                  ],
+                  selected: activeSegment,
+                  onChanged: (s) => setState(() {
+                    _segment = s;
+                    _userSwitchedSegment = true;
+                  }),
                 ),
-                ButtonSegment(
-                  value: _ProvidersSegment.plugins,
-                  label: Text(l10n.providersSegmentPlugins),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: activeSegment == _ProvidersSegment.api
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                TextButton(
+                                  key: const ValueKey(
+                                    'add-preset-provider-btn',
+                                  ),
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                    ),
+                                    minimumSize: const Size(0, 34),
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  onPressed: runtimeRunning
+                                      ? () =>
+                                            showPresetPickerSheet(context, ref)
+                                      : null,
+                                  child: Text(l10n.providersAddFromPreset),
+                                ),
+                                const SizedBox(width: 4),
+                                FilledButton.tonalIcon(
+                                  key: const ValueKey(
+                                    'add-custom-provider-btn',
+                                  ),
+                                  style: FilledButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                    ),
+                                    minimumSize: const Size(0, 34),
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  onPressed: runtimeRunning
+                                      ? () => showFalconSheet<bool>(
+                                            context: context,
+                                            builder: (_) =>
+                                                const ProviderEditorSheet(),
+                                          )
+                                      : null,
+                                  icon: const Icon(Icons.add_rounded, size: 17),
+                                  label: Text(l10n.actionAdd),
+                                ),
+                              ],
+                            )
+                          : Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  tooltip: l10n.pluginsRefreshQuotas,
+                                  icon: const Icon(
+                                    Icons.refresh_rounded,
+                                    size: 19,
+                                  ),
+                                  onPressed: runtimeRunning
+                                      ? () async {
+                                          final client = ref.read(
+                                            adminApiClientProvider,
+                                          );
+                                          if (client == null) return;
+                                          await client.refreshPluginQuotas();
+                                          await ref
+                                              .read(
+                                                gatewayAdminStateProvider
+                                                    .notifier,
+                                              )
+                                              .reload();
+                                        }
+                                      : null,
+                                ),
+                                TextButton.icon(
+                                  key: const ValueKey(
+                                    'open-plugin-market-btn',
+                                  ),
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                    ),
+                                    minimumSize: const Size(0, 34),
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  onPressed: runtimeRunning
+                                      ? () => showFalconSheet<void>(
+                                            context: context,
+                                            builder: (_) =>
+                                                const PluginMarketSheet(),
+                                          )
+                                      : null,
+                                  icon: const Icon(Icons.add_rounded, size: 17),
+                                  label: Text(l10n.pluginsDirectoryAction),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
                 ),
               ],
-              selected: {activeSegment},
-              onSelectionChanged: (s) => setState(() {
-                _segment = s.first;
-                _userSwitchedSegment = true;
-              }),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
             if (activeSegment == _ProvidersSegment.api) ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      key: const ValueKey('add-preset-provider-btn'),
-                      onPressed: runtimeRunning
-                          ? () => showPresetPickerSheet(context, ref)
-                          : null,
-                      icon: const Icon(Icons.apps_rounded, size: 17),
-                      label: Text(l10n.providersAddFromPreset),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: FilledButton.icon(
-                      key: const ValueKey('add-custom-provider-btn'),
-                      onPressed: runtimeRunning
-                          ? () => showFalconSheet<bool>(
-                                context: context,
-                                builder: (_) => const ProviderEditorSheet(),
-                              )
-                          : null,
-                      icon: const Icon(Icons.add_rounded, size: 17),
-                      label: Text(l10n.providersAddCustom),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
               if (snapshot.providers.isEmpty)
                 FalconCard(
                   padding: const EdgeInsets.all(18),
@@ -237,41 +318,6 @@ class _ProvidersScreenState extends ConsumerState<ProvidersScreen> {
                   ),
                 ),
             ] else ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      key: const ValueKey('open-plugin-market-btn'),
-                      onPressed: runtimeRunning
-                          ? () => showFalconSheet<void>(
-                                context: context,
-                                builder: (_) => const PluginMarketSheet(),
-                              )
-                          : null,
-                      icon: const Icon(Icons.extension_outlined, size: 17),
-                      label: Text(l10n.pluginsDirectoryAction),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: runtimeRunning
-                          ? () async {
-                              final client = ref.read(adminApiClientProvider);
-                              if (client == null) return;
-                              await client.refreshPluginQuotas();
-                              await ref
-                                  .read(gatewayAdminStateProvider.notifier)
-                                  .reload();
-                            }
-                          : null,
-                      icon: const Icon(Icons.refresh_rounded, size: 17),
-                      label: Text(l10n.pluginsRefreshQuotas),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
               if (plugins.isEmpty)
                 FalconCard(
                   padding: const EdgeInsets.all(18),
@@ -374,86 +420,53 @@ class _ProviderRow extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        padding: const EdgeInsets.fromLTRB(16, 12, 10, 12),
+        child: Row(
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 4,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          Text(
-                            provider.name,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: c.textPrimary,
-                            ),
-                          ),
-                          StatusPill(
-                            label: provider.protocol,
-                            tone: StatusTone.neutral,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        provider.baseUrl,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: FalconTheme.mono(
-                          context,
-                          fontSize: 11.5,
-                          color: c.textSecondary,
-                        ),
-                      ),
-                    ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    provider.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w600,
+                      color: c.textPrimary,
+                    ),
                   ),
-                ),
-                Switch(value: provider.enabled, onChanged: onToggle),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Text(
-                        '${provider.keys.length} keys · $activeModels models',
-                        style: FalconTheme.tabular(
-                          TextStyle(fontSize: 12, color: c.textSecondary),
-                        ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${provider.protocol} · $activeModels'
+                    '${lastTest != null ? ' · ${lastTest.ok ? l10n.providersTestPass(lastTest.latencyMs) : l10n.providersTestFail(lastTest.statusCode)}' : ''}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: FalconTheme.tabular(
+                      TextStyle(
+                        fontSize: 12,
+                        color: (lastTest != null && !lastTest.ok)
+                            ? c.danger
+                            : c.textSecondary,
                       ),
-                      if (lastTest != null)
-                        StatusPill(
-                          label: lastTest.ok
-                              ? l10n.providersTestPass(lastTest.latencyMs)
-                              : l10n.providersTestFail(lastTest.statusCode),
-                          tone: lastTest.ok
-                              ? StatusTone.success
-                              : StatusTone.danger,
-                        ),
-                    ],
+                    ),
                   ),
-                ),
-                OutlinedButton(
-                  onPressed: testing ? null : onTest,
-                  child:
-                      Text(testing ? l10n.providersTesting : l10n.actionTest),
-                ),
-              ],
+                ],
+              ),
             ),
+            IconButton(
+              tooltip: l10n.actionTest,
+              onPressed: testing ? null : onTest,
+              icon: testing
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.bolt_outlined, size: 19),
+            ),
+            Switch(value: provider.enabled, onChanged: onToggle),
           ],
         ),
       ),
@@ -500,42 +513,33 @@ class _PluginCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
+            padding: const EdgeInsets.fromLTRB(16, 12, 10, 12),
             child: Row(
               children: [
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
                     children: [
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          Text(
-                            plugin.name,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: c.textPrimary,
-                            ),
+                      Flexible(
+                        child: Text(
+                          plugin.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w700,
+                            color: c.textPrimary,
                           ),
-                          if (plugin.version.isNotEmpty)
-                            StatusPill(
-                              label: 'v${plugin.version}',
-                              tone: StatusTone.neutral,
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${plugin.package} · ${l10n.pluginsAccountsCount(plugin.accounts.length)}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: FalconTheme.tabular(
-                          TextStyle(fontSize: 12, color: c.textSecondary),
                         ),
                       ),
+                      if (plugin.version.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          'v${plugin.version}',
+                          style: FalconTheme.tabular(
+                            TextStyle(fontSize: 12, color: c.textMuted),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -544,11 +548,11 @@ class _PluginCard extends StatelessWidget {
                   onPressed: refreshing ? null : onRefresh,
                   icon: refreshing
                       ? const SizedBox(
-                          width: 18,
-                          height: 18,
+                          width: 17,
+                          height: 17,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.sync_rounded, size: 20),
+                      : const Icon(Icons.sync_rounded, size: 19),
                 ),
                 Switch(value: plugin.enabled, onChanged: onToggle),
               ],
@@ -556,27 +560,39 @@ class _PluginCard extends StatelessWidget {
           ),
           if (plugin.error.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
               child: Text(
                 plugin.error,
                 style: TextStyle(fontSize: 12, color: c.danger),
               ),
             ),
-          for (final detail in details) ...[
-            const FalconDivider(indent: 0),
-            _PluginProviderSection(
-              detail: detail,
-              displayTitle: localizedPluginProviderTitle(l10n, detail),
-              onSignIn: () => onSignIn(detail.id),
-              onSelectModels: () => onSelectModels(
-                detail,
-                localizedPluginProviderTitle(l10n, detail),
+          if (details.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 2, 12, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < details.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 8),
+                    _PluginProviderSection(
+                      detail: details[i],
+                      displayTitle: localizedPluginProviderTitle(
+                        l10n,
+                        details[i],
+                      ),
+                      onSignIn: () => onSignIn(details[i].id),
+                      onSelectModels: () => onSelectModels(
+                        details[i],
+                        localizedPluginProviderTitle(l10n, details[i]),
+                      ),
+                      onTestModel: onTestModel,
+                      onCheckin: onCheckin,
+                      onSignOut: onSignOut,
+                    ),
+                  ],
+                ],
               ),
-              onTestModel: onTestModel,
-              onCheckin: onCheckin,
-              onSignOut: onSignOut,
             ),
-          ],
         ],
       ),
     );
@@ -619,36 +635,84 @@ class _PluginProviderSection extends StatelessWidget {
             ? activeIds.first
             : '${detail.id}/${activeIds.first}');
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 14, 14),
+    if (!detail.authenticated) {
+      return Container(
+        decoration: BoxDecoration(
+          color: c.cardSubtle,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    displayTitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w500,
+                      color: c.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    detail.lastError.isNotEmpty
+                        ? detail.lastError
+                        : l10n.pluginsNotAuthenticated,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: detail.lastError.isNotEmpty
+                          ? c.danger
+                          : c.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            OutlinedButton(
+              key: ValueKey('plugin-signin-${detail.id}'),
+              style: OutlinedButton.styleFrom(
+                backgroundColor: c.card,
+                minimumSize: const Size(0, 34),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              onPressed: onSignIn,
+              child: Text(l10n.pluginsActionSignInShort),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: c.cardSubtle,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 6,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Text(
-                displayTitle,
-                style: TextStyle(
-                  fontSize: 14.5,
-                  fontWeight: FontWeight.w600,
-                  color: c.textPrimary,
-                ),
-              ),
-              StatusPill(
-                label: detail.authenticated
-                    ? l10n.pluginsAuthenticated
-                    : l10n.pluginsNotAuthenticated,
-                tone: detail.authenticated
-                    ? StatusTone.success
-                    : StatusTone.warning,
-              ),
-            ],
+          Text(
+            displayTitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: c.textPrimary,
+            ),
           ),
           if (detail.lastError.isNotEmpty) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Text(
               detail.lastError,
               style: TextStyle(fontSize: 12, color: c.danger),
@@ -656,123 +720,143 @@ class _PluginProviderSection extends StatelessWidget {
           ],
           for (final acct in detail.accounts) ...[
             const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-              decoration: BoxDecoration(
-                color: c.cardSubtle,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: c.border,
-                  width: FalconTheme.borderWidth,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(
-                          acct.label.isNotEmpty ? acct.label : acct.id,
+                      Text(
+                        acct.label.isNotEmpty ? acct.label : acct.id,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          color: c.textSecondary,
+                        ),
+                      ),
+                      if (acct.quotas.isNotEmpty) ...[
+                        const SizedBox(height: 1),
+                        Text(
+                          acct.quotas.map((q) {
+                            final ratio = q.limit > 0
+                                ? '${q.used.toInt()}/${q.limit.toInt()}'
+                                : (q.remainingPct != null
+                                    ? '${q.remainingPct!.toStringAsFixed(0)}%'
+                                    : '--');
+                            return '${q.label} $ratio';
+                          }).join(' · '),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w500,
-                            color: c.textPrimary,
+                          style: FalconTheme.tabular(
+                            TextStyle(fontSize: 11.5, color: c.textMuted),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (detail.supportsCheckin)
+                  TextButton(
+                    style: TextButton.styleFrom(
+                      minimumSize: const Size(0, 32),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: () => onCheckin(acct),
+                    child: Text(l10n.pluginsCheckin),
+                  ),
+                TextButton(
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(0, 32),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  onPressed: () => onSignOut(acct),
+                  child: Text(
+                    l10n.pluginsSignOut,
+                    style: TextStyle(color: c.textSecondary),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (detail.supportsModels || detail.models.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Material(
+              color: c.card,
+              borderRadius: BorderRadius.circular(10),
+              child: InkWell(
+                key: ValueKey('plugin-models-${detail.id}'),
+                borderRadius: BorderRadius.circular(10),
+                onTap: onSelectModels,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 9, 8, 9),
+                  child: Row(
+                    children: [
+                      Text(
+                        l10n.pluginsModelsRowLabel,
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          color: c.textSecondary,
+                        ),
+                      ),
+                      const Spacer(),
+                      Flexible(
+                        flex: 0,
+                        child: Text(
+                          modelSummary,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: FalconTheme.tabular(
+                            TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: c.textPrimary,
+                            ),
                           ),
                         ),
                       ),
-                      if (detail.supportsCheckin || acct.quotas.isEmpty)
-                        TextButton(
-                          onPressed: () => onCheckin(acct),
-                          child: Text(l10n.pluginsCheckin),
-                        ),
-                      TextButton(
-                        onPressed: () => onSignOut(acct),
-                        child: Text(
-                          l10n.pluginsSignOut,
-                          style: TextStyle(color: c.danger),
-                        ),
+                      const SizedBox(width: 2),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: 18,
+                        color: c.textMuted,
                       ),
                     ],
                   ),
-                  if (acct.quotas.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: acct.quotas.map((q) {
-                        final ratio = q.limit > 0
-                            ? '${q.used.toInt()}/${q.limit.toInt()}'
-                            : (q.remainingPct != null
-                                ? '${q.remainingPct!.toStringAsFixed(0)}%'
-                                : '--');
-                        return StatusPill(
-                          label: '${q.label}: $ratio',
-                          tone: StatusTone.neutral,
-                        );
-                      }).toList(growable: false),
-                    ),
-                  ],
-                ],
+                ),
               ),
             ),
           ],
-          if (detail.models.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(
-              modelSummary,
-              style: FalconTheme.tabular(
-                TextStyle(fontSize: 12, color: c.textSecondary),
-              ),
-            ),
-            if (activeIds.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  for (final id in activeIds.take(4))
-                    StatusPill(label: id, tone: StatusTone.neutral),
-                  if (activeIds.length > 4)
-                    StatusPill(
-                      label: '+${activeIds.length - 4}',
-                      tone: StatusTone.accent,
-                    ),
-                ],
-              ),
-            ],
-          ],
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
+          const SizedBox(height: 8),
+          Row(
             children: [
-              FilledButton.tonalIcon(
+              TextButton.icon(
                 key: ValueKey('plugin-signin-${detail.id}'),
+                style: TextButton.styleFrom(
+                  minimumSize: const Size(0, 32),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
                 onPressed: onSignIn,
-                icon: const Icon(Icons.login_rounded, size: 17),
-                label: Text(
-                  detail.accounts.isEmpty
-                      ? l10n.pluginsSignIn
-                      : l10n.pluginsAddAccount,
-                ),
+                icon: const Icon(Icons.add_rounded, size: 16),
+                label: Text(l10n.pluginsAddAccount),
               ),
-              if (detail.supportsModels || detail.models.isNotEmpty)
-                OutlinedButton.icon(
-                  key: ValueKey('plugin-models-${detail.id}'),
-                  onPressed: onSelectModels,
-                  icon: const Icon(Icons.tune_rounded, size: 17),
-                  label: Text(l10n.pluginsSelectModels),
-                ),
-              if (firstTestTarget != null)
-                OutlinedButton.icon(
+              if (firstTestTarget != null) ...[
+                const SizedBox(width: 6),
+                TextButton.icon(
                   key: ValueKey('plugin-test-${detail.id}'),
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(0, 32),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                   onPressed: () => onTestModel(firstTestTarget),
-                  icon: const Icon(Icons.terminal_rounded, size: 17),
-                  label: Text(l10n.pluginsTestInPlayground),
+                  icon: const Icon(Icons.terminal_rounded, size: 15),
+                  label: Text(l10n.actionTest),
                 ),
+              ],
             ],
           ),
         ],

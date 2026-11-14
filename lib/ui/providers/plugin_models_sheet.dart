@@ -6,8 +6,8 @@ import '../../l10n/l10n.dart';
 import '../../state/gateway_state.dart';
 import '../../theme/falcon_theme.dart';
 import '../widgets/falcon_card.dart';
+import '../widgets/falcon_row.dart';
 import '../widgets/sheet_frame.dart';
-import '../widgets/status_pill.dart';
 
 enum _ModelFilter { all, selected, free }
 
@@ -145,6 +145,7 @@ class _PluginModelsSheetState extends ConsumerState<PluginModelsSheet> {
     final l10n = context.l10n;
     final c = FalconColors.of(context);
     final filtered = _filteredModels;
+    final shortTitle = widget.displayTitle.split(' (').first;
     final subtitle = _selectedIds.isEmpty
         ? l10n.pluginsAutoAllModels(_models.length)
         : l10n.pluginsSelectedModelsSummary(
@@ -153,8 +154,8 @@ class _PluginModelsSheetState extends ConsumerState<PluginModelsSheet> {
           );
 
     return FalconSheetFrame(
-      title: '${widget.displayTitle} · ${l10n.pluginsModelsTitle}',
-      subtitle: subtitle,
+      title: l10n.pluginsModelsTitle,
+      subtitle: '$shortTitle · $subtitle',
       headerTrailing: IconButton(
         key: const ValueKey('plugin-models-refresh-btn'),
         tooltip: l10n.actionRefresh,
@@ -194,77 +195,64 @@ class _PluginModelsSheetState extends ConsumerState<PluginModelsSheet> {
             onChanged: (v) => setState(() => _query = v),
           ),
           const SizedBox(height: 10),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              ChoiceChip(
-                label: Text(l10n.pluginsModelsFilterAll),
-                selected: _filter == _ModelFilter.all,
-                onSelected: (_) => setState(() => _filter = _ModelFilter.all),
-              ),
-              ChoiceChip(
-                label: Text(l10n.pluginsModelsFilterSelected),
-                selected: _filter == _ModelFilter.selected,
-                onSelected: (_) =>
-                    setState(() => _filter = _ModelFilter.selected),
-              ),
-              ChoiceChip(
-                label: Text(l10n.pluginsModelsFilterFree),
-                selected: _filter == _ModelFilter.free,
-                onSelected: (_) => setState(() => _filter = _ModelFilter.free),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
           Row(
             children: [
               Expanded(
-                child: OutlinedButton(
-                  key: const ValueKey('plugin-models-select-all-btn'),
-                  onPressed: _models.isEmpty
-                      ? null
-                      : () => setState(
-                            () => _selectedIds =
-                                _models.map((m) => m.id).toSet(),
-                          ),
-                  child: Text(l10n.pluginsModelsSelectAll),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      ChoiceChip(
+                        label: Text(l10n.pluginsModelsFilterAll),
+                        selected: _filter == _ModelFilter.all,
+                        onSelected: (_) =>
+                            setState(() => _filter = _ModelFilter.all),
+                      ),
+                      const SizedBox(width: 6),
+                      ChoiceChip(
+                        label: Text(l10n.pluginsModelsFilterSelected),
+                        selected: _filter == _ModelFilter.selected,
+                        onSelected: (_) =>
+                            setState(() => _filter = _ModelFilter.selected),
+                      ),
+                      const SizedBox(width: 6),
+                      ChoiceChip(
+                        label: Text(l10n.pluginsModelsFilterFree),
+                        selected: _filter == _ModelFilter.free,
+                        onSelected: (_) =>
+                            setState(() => _filter = _ModelFilter.free),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton(
-                  key: const ValueKey('plugin-models-clear-auto-btn'),
-                  onPressed: _selectedIds.isEmpty
-                      ? null
-                      : () => setState(() => _selectedIds.clear()),
-                  child: Text(l10n.pluginsModelsClearAuto),
-                ),
+              TextButton(
+                key: const ValueKey('plugin-models-select-all-btn'),
+                onPressed: _models.isEmpty
+                    ? null
+                    : () => setState(
+                          () => _selectedIds =
+                              _models.map((m) => m.id).toSet(),
+                        ),
+                child: Text(l10n.pluginsModelsSelectAll),
+              ),
+              TextButton(
+                key: const ValueKey('plugin-models-clear-auto-btn'),
+                onPressed: _selectedIds.isEmpty
+                    ? null
+                    : () => setState(() => _selectedIds.clear()),
+                child: Text(l10n.actionClear),
               ),
             ],
           ),
-          if (_selectedIds.isEmpty && _models.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: Text(
-                l10n.pluginsModelsAutoBanner,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: c.textSecondary,
-                  height: 1.4,
-                ),
-              ),
-            ),
-          ],
           if (_error != null) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Text(
               _error!,
               style: TextStyle(fontSize: 12.5, color: c.danger),
             ),
           ],
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           if (filtered.isEmpty)
             FalconCard(
               padding: const EdgeInsets.all(16),
@@ -278,7 +266,7 @@ class _PluginModelsSheetState extends ConsumerState<PluginModelsSheet> {
               child: Column(
                 children: [
                   for (var i = 0; i < filtered.length; i++) ...[
-                    if (i > 0) const Divider(height: 1),
+                    if (i > 0) const FalconDivider.icon(),
                     _PluginModelRow(
                       model: filtered[i],
                       selected: _selectedIds.contains(filtered[i].id),
@@ -322,13 +310,20 @@ class _PluginModelRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final c = FalconColors.of(context);
+    final hasSecondary = model.displayName != model.id ||
+        model.free ||
+        model.reasoning ||
+        model.toolCall;
+
     return InkWell(
       onTap: () => onChanged(!selected),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+        padding: const EdgeInsets.fromLTRB(10, 10, 14, 10),
         child: Row(
           children: [
             Checkbox(
+              visualDensity: VisualDensity.compact,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               value: selected,
               onChanged: (v) => onChanged(v ?? false),
             ),
@@ -337,57 +332,81 @@ class _PluginModelRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    model.displayName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: c.textPrimary,
-                    ),
-                  ),
-                  if (model.displayName != model.id) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      model.id,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: FalconTheme.mono(
-                        context,
-                        fontSize: 11.5,
-                        color: c.textSecondary,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          model.displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: c.textPrimary,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
-                  if (contextBadge != null ||
-                      model.free ||
-                      model.reasoning ||
-                      model.toolCall) ...[
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
+                      if (contextBadge != null) ...[
+                        const SizedBox(width: 8),
+                        Text(
+                          contextBadge!,
+                          style: FalconTheme.tabular(
+                            TextStyle(
+                              fontSize: 12,
+                              color: c.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  if (hasSecondary) ...[
+                    const SizedBox(height: 2),
+                    Row(
                       children: [
-                        if (contextBadge != null)
-                          StatusPill(
-                            label: contextBadge!,
-                            tone: StatusTone.neutral,
+                        if (model.displayName != model.id) ...[
+                          Flexible(
+                            child: Text(
+                              model.id,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: FalconTheme.mono(
+                                context,
+                                fontSize: 11.5,
+                                color: c.textMuted,
+                              ),
+                            ),
                           ),
+                          const SizedBox(width: 8),
+                        ],
+                        if (model.reasoning) ...[
+                          Text(
+                            l10n.pluginsModelsCapReasoning,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: c.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        if (model.toolCall) ...[
+                          Text(
+                            l10n.pluginsModelsCapTools,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: c.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
                         if (model.free)
-                          StatusPill(
-                            label: l10n.pluginsModelsCapFree,
-                            tone: StatusTone.neutral,
-                          ),
-                        if (model.reasoning)
-                          StatusPill(
-                            label: l10n.pluginsModelsCapReasoning,
-                            tone: StatusTone.neutral,
-                          ),
-                        if (model.toolCall)
-                          StatusPill(
-                            label: l10n.pluginsModelsCapTools,
-                            tone: StatusTone.neutral,
+                          Text(
+                            l10n.pluginsModelsCapFree,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: c.accent,
+                            ),
                           ),
                       ],
                     ),

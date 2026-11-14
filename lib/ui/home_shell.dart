@@ -78,34 +78,26 @@ class _HomeShellState extends ConsumerState<HomeShell> {
               overflow: TextOverflow.ellipsis,
             ),
             actions: [
-              FilledButton.tonalIcon(
+              IconButton(
                 key: const ValueKey('appbar-test-btn'),
+                tooltip: l10n.actionTestConsole,
+                icon: const Icon(Icons.terminal_rounded, size: 21),
                 onPressed: () => showFalconSheet<void>(
                   context: context,
                   builder: (_) => const PlaygroundSheet(),
                 ),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  minimumSize: const Size(0, 34),
-                ),
-                icon: const Icon(Icons.terminal_rounded, size: 16),
-                label: Text(l10n.actionTestConsole),
               ),
-              const SizedBox(width: 4),
               IconButton(
                 key: const ValueKey('appbar-settings-btn'),
                 tooltip: l10n.actionSettings,
-                icon: const Icon(Icons.tune_rounded, size: 20),
+                icon: const Icon(Icons.settings_outlined, size: 21),
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) => const SettingsScreen(),
                   ),
                 ),
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: 6),
             ],
           ),
           body: useRail

@@ -8,7 +8,6 @@ import '../../theme/falcon_theme.dart';
 import '../widgets/falcon_card.dart';
 import '../widgets/falcon_row.dart';
 import '../widgets/sheet_frame.dart';
-import '../widgets/status_pill.dart';
 
 class PluginMarketSheet extends ConsumerStatefulWidget {
   const PluginMarketSheet({super.key});
@@ -96,45 +95,36 @@ class _PluginMarketSheetState extends ConsumerState<PluginMarketSheet> {
             onChanged: (v) => setState(() => _query = v),
           ),
           const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    ChoiceChip(
-                      label: Text(l10n.pluginsMarketCategoryAll),
-                      selected: _category == 'all',
-                      onSelected: (_) => setState(() => _category = 'all'),
-                    ),
-                    ChoiceChip(
-                      label: Text(l10n.pluginsMarketCategoryAuth),
-                      selected: _category == 'auth',
-                      onSelected: (_) => setState(() => _category = 'auth'),
-                    ),
-                    ChoiceChip(
-                      label: Text(l10n.pluginsMarketCategoryMiddleware),
-                      selected: _category == 'middleware',
-                      onSelected: (_) =>
-                          setState(() => _category = 'middleware'),
-                    ),
-                  ],
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                ChoiceChip(
+                  label: Text(l10n.pluginsMarketCategoryAll),
+                  selected: _category == 'all',
+                  onSelected: (_) => setState(() => _category = 'all'),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          FalconCard(
-            child: FalconRow(
-              icon: Icons.public_outlined,
-              title: l10n.pluginsMarketChinaMirror,
-              trailing: Switch(
-                value: settings.chinaMirror,
-                onChanged: (v) => ref
-                    .read(gatewayAdminStateProvider.notifier)
-                    .updateSettings({'chinaMirror': v}),
-              ),
+                const SizedBox(width: 6),
+                ChoiceChip(
+                  label: Text(l10n.pluginsMarketCategoryAuth),
+                  selected: _category == 'auth',
+                  onSelected: (_) => setState(() => _category = 'auth'),
+                ),
+                const SizedBox(width: 6),
+                ChoiceChip(
+                  label: Text(l10n.pluginsMarketCategoryMiddleware),
+                  selected: _category == 'middleware',
+                  onSelected: (_) => setState(() => _category = 'middleware'),
+                ),
+                const SizedBox(width: 6),
+                FilterChip(
+                  label: Text(l10n.pluginsMarketChinaMirror),
+                  selected: settings.chinaMirror,
+                  onSelected: (v) => ref
+                      .read(gatewayAdminStateProvider.notifier)
+                      .updateSettings({'chinaMirror': v}),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 12),
@@ -190,40 +180,31 @@ class _PluginMarketSheetState extends ConsumerState<PluginMarketSheet> {
                 child: Column(
                   children: [
                     for (var i = 0; i < filtered.length; i++) ...[
-                      if (i > 0) const FalconDivider(indent: 0),
+                      if (i > 0) const FalconDivider(),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
                         child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Wrap(
-                                    spacing: 6,
-                                    runSpacing: 4,
-                                    crossAxisAlignment:
-                                        WrapCrossAlignment.center,
-                                    children: [
-                                      Text(
-                                        filtered[i].name,
-                                        style: TextStyle(
-                                          fontSize: 14.5,
-                                          fontWeight: FontWeight.w600,
-                                          color: c.textPrimary,
-                                        ),
-                                      ),
-                                      if (filtered[i].installed)
-                                        StatusPill(
-                                          label: l10n.pluginsMarketInstalled,
-                                          tone: StatusTone.success,
-                                        ),
-                                    ],
+                                  Text(
+                                    filtered[i].name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 14.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: c.textPrimary,
+                                    ),
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
                                     filtered[i].package,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                     style: FalconTheme.mono(
                                       context,
                                       fontSize: 11.5,

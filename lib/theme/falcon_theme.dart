@@ -156,11 +156,11 @@ class FalconColors extends ThemeExtension<FalconColors> {
 }
 
 abstract final class FalconTheme {
-  static const double cardRadius = 24.0;
-  static const double heroRadius = 28.0;
-  static const double sheetRadius = 28.0;
-  static const double inputRadius = 16.0;
-  static const double pillRadius = 999.0;
+  static const double cardRadius = 16.0;
+  static const double heroRadius = 16.0;
+  static const double sheetRadius = 24.0;
+  static const double inputRadius = 12.0;
+  static const double pillRadius = 10.0;
   static const double borderWidth = 1.0;
 
   static TextStyle tabular(TextStyle? base) => (base ?? const TextStyle())
@@ -260,6 +260,13 @@ abstract final class FalconTheme {
         space: borderWidth,
       ),
       iconTheme: IconThemeData(color: c.textSecondary, size: 20),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          minimumSize: const Size(36, 36),
+          padding: const EdgeInsets.all(8),
+        ),
+      ),
       appBarTheme: AppBarTheme(
         backgroundColor: c.scaffold,
         foregroundColor: c.textPrimary,
@@ -291,10 +298,12 @@ abstract final class FalconTheme {
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: c.card,
         elevation: 0,
-        height: 68,
+        height: 62,
         surfaceTintColor: Colors.transparent,
         indicatorColor: c.accentSoft,
-        indicatorShape: const StadiumBorder(),
+        indicatorShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
           return IconThemeData(
@@ -342,34 +351,56 @@ abstract final class FalconTheme {
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 14,
-          vertical: 13,
+          vertical: 11,
         ),
-        hintStyle: TextStyle(color: c.textMuted, fontSize: 14),
-        labelStyle: TextStyle(color: c.textSecondary, fontSize: 14),
-        border: OutlineInputBorder(
+        hintStyle: TextStyle(color: c.textMuted, fontSize: 13.5),
+        labelStyle: TextStyle(color: c.textSecondary, fontSize: 13),
+        floatingLabelStyle: TextStyle(color: c.textSecondary, fontSize: 12),
+        border: UnderlineInputBorder(
           borderRadius: BorderRadius.circular(inputRadius),
-          borderSide: BorderSide(color: c.border, width: borderWidth),
+          borderSide: BorderSide.none,
         ),
-        enabledBorder: OutlineInputBorder(
+        enabledBorder: UnderlineInputBorder(
           borderRadius: BorderRadius.circular(inputRadius),
-          borderSide: BorderSide(color: c.border, width: borderWidth),
+          borderSide: BorderSide.none,
         ),
-        focusedBorder: OutlineInputBorder(
+        disabledBorder: UnderlineInputBorder(
           borderRadius: BorderRadius.circular(inputRadius),
-          borderSide: BorderSide(color: c.accent, width: 1.5),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: UnderlineInputBorder(
+          borderRadius: BorderRadius.circular(inputRadius),
+          borderSide: BorderSide.none,
+        ),
+        errorBorder: UnderlineInputBorder(
+          borderRadius: BorderRadius.circular(inputRadius),
+          borderSide: BorderSide(color: c.danger, width: 1.2),
+        ),
+        focusedErrorBorder: UnderlineInputBorder(
+          borderRadius: BorderRadius.circular(inputRadius),
+          borderSide: BorderSide(color: c.danger, width: 1.2),
         ),
       ),
       segmentedButtonTheme: SegmentedButtonThemeData(
         style: ButtonStyle(
+          visualDensity: VisualDensity.compact,
           backgroundColor: WidgetStateProperty.resolveWith((states) {
             return states.contains(WidgetState.selected)
-                ? c.accentSoft
+                ? c.cardSubtle
                 : c.card;
           }),
           foregroundColor: WidgetStateProperty.resolveWith((states) {
             return states.contains(WidgetState.selected)
-                ? (isDark ? c.textPrimary : c.accent)
+                ? c.textPrimary
                 : c.textSecondary;
+          }),
+          textStyle: WidgetStateProperty.resolveWith((states) {
+            return TextStyle(
+              fontSize: 13,
+              fontWeight: states.contains(WidgetState.selected)
+                  ? FontWeight.w600
+                  : FontWeight.w500,
+            );
           }),
           side: WidgetStatePropertyAll(
             BorderSide(color: c.border, width: borderWidth),
@@ -380,11 +411,12 @@ abstract final class FalconTheme {
             ),
           ),
           padding: const WidgetStatePropertyAll(
-            EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           ),
         ),
       ),
       switchTheme: SwitchThemeData(
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
         thumbIcon: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return Icon(Icons.check_rounded, size: 14, color: c.accent);
@@ -411,39 +443,56 @@ abstract final class FalconTheme {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           elevation: 0,
-          shape: const StadiumBorder(),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          textStyle: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
+          minimumSize: const Size(0, 40),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(pillRadius),
           ),
-        ),
-      ),
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: c.textPrimary,
-          side: BorderSide(color: c.border, width: borderWidth),
-          shape: const StadiumBorder(),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
           textStyle: const TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: 13.5,
           ),
         ),
       ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: c.textPrimary,
+          minimumSize: const Size(0, 38),
+          side: BorderSide(color: c.border, width: borderWidth),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(pillRadius),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          textStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+          ),
+        ),
+      ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: c.accent,
-          shape: const StadiumBorder(),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+          minimumSize: const Size(0, 34),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          textStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+          ),
         ),
       ),
       chipTheme: ChipThemeData(
-        shape: const StadiumBorder(),
-        side: BorderSide(color: c.border, width: borderWidth),
-        backgroundColor: c.card,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        side: BorderSide.none,
+        backgroundColor: c.cardSubtle,
         selectedColor: c.accentSoft,
+        showCheckmark: false,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        labelPadding: const EdgeInsets.symmetric(horizontal: 2),
         labelStyle: TextStyle(fontSize: 12.5, color: c.textPrimary),
       ),
       snackBarTheme: SnackBarThemeData(
