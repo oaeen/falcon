@@ -565,3 +565,247 @@ export async function WorkBuddyAuthPlugin() {
 		t.Fatalf("expected folded usage 7/3/10, got %#v", usageMap)
 	}
 }
+
+func TestGatewayBareAndNormalizedRoutesAndCallablePluginModels(t *testing.T) {
+	bun := plugin.DetectBun("")
+	if bun == "" {
+		t.Fatal("bun binary not found in PATH or bundled location; required for gateway plugin integration test")
+	}
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"wb-norm","object":"chat.completion","model":"intl-pro","choices":[{"index":0,"message":{"role":"assistant","content":"routed ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":4,"completion_tokens":2,"total_tokens":6}}`))
+	}))
+	defer upstream.Close()
+
+	dataDir := t.TempDir()
+	cacheDir := t.TempDir()
+	pkg := "@magpie-community/opencode-workbuddy-auth"
+	pkgDir := filepath.Join(dataDir, "plugins", "node_modules", pkg)
+	if err := os.MkdirAll(pkgDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(pkgDir, "package.json"), []byte(`{"name":"@magpie-community/opencode-workbuddy-auth","version":"1.0.0","main":"index.mjs"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pluginJS := fmt.Sprintf(`
+export async function WorkBuddyCNPlugin() {
+  return {
+    auth: {
+      provider: "workbuddy",
+      loader: async () => ({ apiKey: "", baseURL: %q }),
+      methods: [{ type: "oauth", label: "CN OAuth" }],
+    },
+    async config(cfg) {
+      cfg.provider = cfg.provider || {};
+      cfg.provider.workbuddy = {
+        id: "workbuddy",
+        name: "WorkBuddy CN",
+        api: %q,
+        models: {
+          "cn-unauth-only": { id: "cn-unauth-only", name: "CN Unauth" }
+        }
+      };
+    }
+  };
+}
+
+export async function WorkBuddyIntlPlugin() {
+  return {
+    auth: {
+      provider: "workbuddy-ai",
+      loader: async () => ({
+        apiKey: "intl-key",
+        baseURL: %q,
+        async fetch(input, init) {
+          return globalThis.fetch(input, init);
+        },
+      }),
+      methods: [{ type: "api", label: "Intl Key" }],
+    },
+    async config(cfg) {
+      cfg.provider = cfg.provider || {};
+      cfg.provider["workbuddy-ai"] = {
+        id: "workbuddy-ai",
+        name: "WorkBuddy Intl",
+        api: %q,
+        models: {
+          "intl-pro": {
+            id: "intl-pro",
+            name: "Intl Pro",
+            limit: { context: 131072, output: 16384 },
+            api: { id: "intl-pro", npm: "@ai-sdk/openai-compatible", url: %q }
+          }
+        }
+      };
+    }
+  };
+}
+`, upstream.URL+"/v1", upstream.URL+"/v1", upstream.URL+"/v1", upstream.URL+"/v1", upstream.URL+"/v1")
+	if err := os.WriteFile(filepath.Join(pkgDir, "index.mjs"), []byte(pluginJS), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Only sign in to workbuddy-ai; leave workbuddy unauthenticated.
+	if err := os.WriteFile(filepath.Join(dataDir, "plugin-auth.json"), []byte(`{"workbuddy-ai":{"type":"api","key":"intl-key"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	st, err := store.Open(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.UpsertPluginEntry(types.InstalledPluginEntry{
+		Package: pkg,
+		Spec:    pkg,
+		Enabled: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	port := freePort(t)
+	if _, _, err := st.UpdateSettings(types.SettingsPatch{Port: &port}); err != nil {
+		t.Fatal(err)
+	}
+
+	pm := plugin.NewManager(st, bun, cacheDir, "", "", nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	if err := pm.Reload(ctx); err != nil {
+		t.Fatalf("pm.Reload: %v", err)
+	}
+	defer pm.Stop()
+
+	gw := New(st, router.New(), pm, nil)
+	if err := gw.Start(); err != nil {
+		t.Fatalf("gw.Start: %v", err)
+	}
+	defer func() {
+		shutCtx, shutCancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer shutCancel()
+		_ = gw.Stop(shutCtx)
+	}()
+
+	// Status() should count only the 1 callable provider and its 1 model, excluding unauthenticated workbuddy.
+	gwStat := gw.Status()
+	if gwStat.ActiveProviderCount != 1 || gwStat.ModelCount != 1 {
+		t.Fatalf("expected ActiveProviderCount=1 ModelCount=1, got provs=%d models=%d", gwStat.ActiveProviderCount, gwStat.ModelCount)
+	}
+
+	baseURL := fmt.Sprintf("http://127.0.0.1:%d", port)
+
+	// 1. Service info GET endpoints: / , /v1 , /api/version
+	for _, p := range []string{"/", "/v1", "/api/version"} {
+		resp, err := http.Get(baseURL + p)
+		if err != nil {
+			t.Fatalf("GET %s: %v", p, err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("GET %s expected 200, got %d: %s", p, resp.StatusCode, string(body))
+		}
+	}
+
+	// 2. Model list routes: /models , /v1/models , /v1/v1/models
+	for _, p := range []string{"/models", "/v1/models", "/v1/v1/models", "/models/"} {
+		resp, err := http.Get(baseURL + p)
+		if err != nil {
+			t.Fatalf("GET %s: %v", p, err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("GET %s expected 200, got %d: %s", p, resp.StatusCode, string(body))
+		}
+		var out struct {
+			Data []map[string]any `json:"data"`
+		}
+		if err := json.Unmarshal(body, &out); err != nil {
+			t.Fatalf("GET %s invalid JSON: %v", p, err)
+		}
+		if len(out.Data) != 1 || out.Data[0]["id"] != "workbuddy-ai/intl-pro" {
+			t.Fatalf("GET %s expected only [workbuddy-ai/intl-pro], got %+v", p, out.Data)
+		}
+		if out.Data[0]["context_window"] != float64(131072) || out.Data[0]["max_output_tokens"] != float64(16384) {
+			t.Fatalf("GET %s missing context/output metadata: %+v", p, out.Data[0])
+		}
+	}
+
+	// 3. Single model routes: /models/intl-pro , /v1/models/workbuddy-ai/intl-pro
+	for _, p := range []string{"/models/intl-pro", "/v1/models/workbuddy-ai/intl-pro"} {
+		resp, err := http.Get(baseURL + p)
+		if err != nil {
+			t.Fatalf("GET %s: %v", p, err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("GET %s expected 200, got %d: %s", p, resp.StatusCode, string(body))
+		}
+		if !strings.Contains(string(body), `"workbuddy-ai/intl-pro"`) {
+			t.Fatalf("GET %s unexpected model payload: %s", p, string(body))
+		}
+	}
+	unauthModelResp, err := http.Get(baseURL + "/v1/models/workbuddy/cn-unauth-only")
+	if err != nil {
+		t.Fatal(err)
+	}
+	unauthModelResp.Body.Close()
+	if unauthModelResp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404 for unauthenticated workbuddy model lookup, got %d", unauthModelResp.StatusCode)
+	}
+
+	// 4. Gemini /v1beta/models list route
+	gemListResp, err := http.Get(baseURL + "/v1beta/models")
+	if err != nil {
+		t.Fatalf("GET /v1beta/models: %v", err)
+	}
+	gemListBody, _ := io.ReadAll(gemListResp.Body)
+	gemListResp.Body.Close()
+	if gemListResp.StatusCode != http.StatusOK || !strings.Contains(string(gemListBody), `"models/workbuddy-ai/intl-pro"`) {
+		t.Fatalf("GET /v1beta/models failed (%d): %s", gemListResp.StatusCode, string(gemListBody))
+	}
+
+	// 5. Bare & doubled completion paths + Anthropic /messages + Gemini /models/<m>:generateContent
+	openAIBody := `{"model":"intl-pro","stream":false,"messages":[{"role":"user","content":"hi"}]}`
+	for _, p := range []string{"/chat/completions", "/v1/v1/chat/completions"} {
+		resp, err := http.Post(baseURL+p, "application/json", strings.NewReader(openAIBody))
+		if err != nil {
+			t.Fatalf("POST %s: %v", p, err)
+		}
+		raw, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK || !strings.Contains(string(raw), "routed ok") {
+			t.Fatalf("POST %s failed (%d): %s", p, resp.StatusCode, string(raw))
+		}
+	}
+
+	antResp, err := http.Post(baseURL+"/messages", "application/json", strings.NewReader(`{"model":"intl-pro","max_tokens":64,"messages":[{"role":"user","content":"hi"}]}`))
+	if err != nil {
+		t.Fatalf("POST /messages: %v", err)
+	}
+	antRaw, _ := io.ReadAll(antResp.Body)
+	antResp.Body.Close()
+	if antResp.StatusCode != http.StatusOK || !strings.Contains(string(antRaw), "routed ok") {
+		t.Fatalf("POST /messages failed (%d): %s", antResp.StatusCode, string(antRaw))
+	}
+
+	gemResp, err := http.Post(baseURL+"/models/intl-pro:generateContent", "application/json", strings.NewReader(`{"contents":[{"role":"user","parts":[{"text":"hi"}]}]}`))
+	if err != nil {
+		t.Fatalf("POST /models/intl-pro:generateContent: %v", err)
+	}
+	gemRaw, _ := io.ReadAll(gemResp.Body)
+	gemResp.Body.Close()
+	if gemResp.StatusCode != http.StatusOK || !strings.Contains(string(gemRaw), "routed ok") {
+		t.Fatalf("POST /models/intl-pro:generateContent failed (%d): %s", gemResp.StatusCode, string(gemRaw))
+	}
+
+	// Unauthenticated provider's bare model must return 404 (not callable), not 401 from upstream.
+	cnResp, err := http.Post(baseURL+"/chat/completions", "application/json", strings.NewReader(`{"model":"cn-unauth-only","messages":[{"role":"user","content":"hi"}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cnResp.Body.Close()
+	if cnResp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404 for unauthenticated provider model, got %d", cnResp.StatusCode)
+	}
+}

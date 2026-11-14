@@ -40,6 +40,7 @@ type Server struct {
 	httpClient *http.Client
 
 	ln         net.Listener
+	ln6        net.Listener
 	httpSrv    *http.Server
 	listenAddr string
 	port       int
@@ -82,6 +83,12 @@ func listenWithRetry(addr string) (net.Listener, error) {
 
 func (s *Server) bindAndServe(ln net.Listener, host string) {
 	actualPort := ln.Addr().(*net.TCPAddr).Port
+	var ln6 net.Listener
+	if host == "127.0.0.1" {
+		if l6, err := net.Listen("tcp6", fmt.Sprintf("[::1]:%d", actualPort)); err == nil {
+			ln6 = l6
+		}
+	}
 	srv := &http.Server{
 		Handler:           s.handler(),
 		ReadHeaderTimeout: 30 * time.Second,
@@ -89,11 +96,18 @@ func (s *Server) bindAndServe(ln net.Listener, host string) {
 
 	s.mu.Lock()
 	s.ln = ln
+	s.ln6 = ln6
 	s.httpSrv = srv
 	s.listenAddr = fmt.Sprintf("%s:%d", host, actualPort)
 	s.port = actualPort
 	s.running = true
 	s.mu.Unlock()
+
+	if ln6 != nil {
+		go func() {
+			_ = srv.Serve(ln6)
+		}()
+	}
 
 	go func() {
 		err := srv.Serve(ln)
@@ -128,6 +142,7 @@ func (s *Server) Relisten() error {
 	}
 	oldSrv := s.httpSrv
 	oldLn := s.ln
+	oldLn6 := s.ln6
 	oldAddr := s.listenAddr
 	oldHost := "127.0.0.1"
 	if strings.HasPrefix(oldAddr, "0.0.0.0:") || strings.HasPrefix(oldAddr, "[::]:") {
@@ -136,10 +151,14 @@ func (s *Server) Relisten() error {
 	wasRunning := s.running
 	s.httpSrv = nil
 	s.ln = nil
+	s.ln6 = nil
 	s.running = false
 	s.mu.Unlock()
 
-	// Release the existing listening socket BEFORE binding the new address.
+	// Release the existing listening sockets BEFORE binding the new address.
+	if oldLn6 != nil {
+		_ = oldLn6.Close()
+	}
 	if oldLn != nil {
 		_ = oldLn.Close()
 	}
@@ -167,10 +186,19 @@ func (s *Server) Relisten() error {
 func (s *Server) Stop(ctx context.Context) error {
 	s.mu.Lock()
 	srv := s.httpSrv
+	ln := s.ln
+	ln6 := s.ln6
 	s.httpSrv = nil
 	s.ln = nil
+	s.ln6 = nil
 	s.running = false
 	s.mu.Unlock()
+	if ln6 != nil {
+		_ = ln6.Close()
+	}
+	if ln != nil {
+		_ = ln.Close()
+	}
 	if srv != nil {
 		return srv.Shutdown(ctx)
 	}
@@ -214,10 +242,10 @@ func (s *Server) Status() types.GatewayStatus {
 				continue
 			}
 			for _, pp := range pl.Providers {
-				if len(pp.Accounts) > 0 || pp.ID == "opencode-zen-free" {
+				if pp.IsCallable() {
 					activeProviders++
+					modelCount += len(pp.ActiveModels())
 				}
-				modelCount += len(pp.ActiveModels())
 			}
 		}
 	}
@@ -335,6 +363,48 @@ func EnumerateLANIPv4() []string {
 	return filterAndSortLANIPs(entries)
 }
 
+// normalizeGatewayPath canonicalizes incoming paths so clients configured with or without
+// a trailing /v1 (or accidentally doubling /v1/v1 or /v1beta/v1beta) all resolve cleanly.
+func normalizeGatewayPath(rawPath string) string {
+	p := rawPath
+	for strings.Contains(p, "//") {
+		p = strings.ReplaceAll(p, "//", "/")
+	}
+	if len(p) > 1 {
+		p = strings.TrimRight(p, "/")
+	}
+	if p == "" {
+		return "/"
+	}
+	for {
+		switch {
+		case strings.HasPrefix(p, "/v1/v1/") || p == "/v1/v1":
+			p = strings.TrimPrefix(p, "/v1")
+		case strings.HasPrefix(p, "/v1beta/v1beta/") || p == "/v1beta/v1beta":
+			p = strings.TrimPrefix(p, "/v1beta")
+		case strings.HasPrefix(p, "/v1/v1beta/") || p == "/v1/v1beta":
+			p = strings.TrimPrefix(p, "/v1")
+		case strings.HasPrefix(p, "/v1/api/") || p == "/v1/api":
+			p = strings.TrimPrefix(p, "/v1")
+		case p == "/v1/health":
+			p = "/health"
+		default:
+			goto bareMap
+		}
+	}
+bareMap:
+	switch {
+	case p == "/models":
+		return "/v1/models"
+	case strings.HasPrefix(p, "/models/"):
+		return "/v1" + p
+	case p == "/chat/completions", p == "/responses", p == "/messages", p == "/messages/count_tokens":
+		return "/v1" + p
+	default:
+		return p
+	}
+}
+
 func (s *Server) handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		settings := s.store.Settings()
@@ -342,8 +412,10 @@ func (s *Server) handler() http.Handler {
 			return
 		}
 
-		path := r.URL.Path
-		if path == "/health" && r.Method == http.MethodGet {
+		normPath := normalizeGatewayPath(r.URL.Path)
+		isGetOrHead := r.Method == http.MethodGet || r.Method == http.MethodHead
+
+		if normPath == "/health" && isGetOrHead {
 			writeJSON(w, http.StatusOK, map[string]any{
 				"ok":        true,
 				"status":    "running",
@@ -359,78 +431,164 @@ func (s *Server) handler() http.Handler {
 		}
 
 		switch {
-		case path == "/v1/models" && r.Method == http.MethodGet:
+		case (normPath == "/" || normPath == "/v1") && isGetOrHead:
+			writeJSON(w, http.StatusOK, map[string]any{
+				"ok":        true,
+				"service":   "falcon",
+				"status":    "running",
+				"uptimeSec": s.store.UptimeSec(),
+				"endpoints": map[string]string{
+					"models":            "/v1/models",
+					"chatCompletions":   "/v1/chat/completions",
+					"responses":         "/v1/responses",
+					"anthropicMessages": "/v1/messages",
+					"geminiModels":      "/v1beta/models",
+					"ollamaTags":        "/api/tags",
+				},
+			})
+		case normPath == "/v1/models" && isGetOrHead:
 			s.handleListModels(w, id)
-		case path == "/api/tags" && r.Method == http.MethodGet:
+		case normPath == "/v1beta/models" && isGetOrHead:
+			s.handleGeminiListModels(w, id)
+		case normPath == "/api/tags" && isGetOrHead:
 			s.handleOllamaTags(w, id)
-		case path == "/v1/chat/completions" && r.Method == http.MethodPost:
+		case normPath == "/api/version" && isGetOrHead:
+			writeJSON(w, http.StatusOK, map[string]any{"version": "0.1.1"})
+		case (strings.HasPrefix(normPath, "/v1beta/models/") || strings.HasPrefix(normPath, "/v1/models/")) && strings.Contains(normPath, ":") && r.Method == http.MethodPost:
+			s.handleGeminiRoute(w, r, normPath, id, settings)
+		case strings.HasPrefix(normPath, "/v1/models/") && isGetOrHead:
+			s.handleGetModel(w, id, strings.TrimPrefix(normPath, "/v1/models/"))
+		case normPath == "/v1/chat/completions" && r.Method == http.MethodPost:
 			s.handleCompletion(w, r, id, settings, types.ProtocolOpenAI, "")
-		case path == "/v1/responses" && r.Method == http.MethodPost:
+		case normPath == "/v1/responses" && r.Method == http.MethodPost:
 			s.handleCompletion(w, r, id, settings, types.ProtocolResponses, "")
-		case path == "/v1/messages" && r.Method == http.MethodPost:
+		case normPath == "/v1/messages" && r.Method == http.MethodPost:
 			s.handleCompletion(w, r, id, settings, types.ProtocolAnthropic, "")
-		case path == "/v1/messages/count_tokens" && r.Method == http.MethodPost:
+		case normPath == "/v1/messages/count_tokens" && r.Method == http.MethodPost:
 			s.handleCountTokens(w, r)
-		case strings.HasPrefix(path, "/v1beta/models/") && r.Method == http.MethodPost:
-			s.handleGeminiRoute(w, r, id, settings)
-		case path == "/api/chat" && r.Method == http.MethodPost:
+		case normPath == "/api/chat" && r.Method == http.MethodPost:
 			s.handleCompletion(w, r, id, settings, types.ProtocolOllama, "")
 		default:
-			access.WriteError(w, http.StatusNotFound, "Unsupported gateway route: "+path)
+			access.WriteError(w, http.StatusNotFound, "Unsupported gateway route: "+r.URL.Path)
 		}
 	})
 }
 
-func (s *Server) collectModels(id access.Identity) []string {
+type modelEntry struct {
+	ID            string
+	Name          string
+	OwnedBy       string
+	ContextWindow int
+	MaxOutput     int
+}
+
+func (s *Server) collectModelEntries(id access.Identity) []modelEntry {
 	cfg := s.store.ConfigSnapshot()
-	seen := make(map[string]bool)
-	var models []string
-	add := func(m string) {
-		if m != "" && !seen[m] && access.ModelAllowed(id, m) {
-			seen[m] = true
-			models = append(models, m)
+	byID := make(map[string]modelEntry)
+	add := func(ent modelEntry) {
+		if ent.ID == "" || !access.ModelAllowed(id, ent.ID) {
+			return
 		}
+		if ent.OwnedBy == "" {
+			if prov, _, ok := strings.Cut(ent.ID, "/"); ok && prov != "" {
+				ent.OwnedBy = prov
+			} else {
+				ent.OwnedBy = "falcon"
+			}
+		}
+		if cur, exists := byID[ent.ID]; exists {
+			if cur.Name == "" {
+				cur.Name = ent.Name
+			}
+			if cur.ContextWindow == 0 {
+				cur.ContextWindow = ent.ContextWindow
+			}
+			if cur.MaxOutput == 0 {
+				cur.MaxOutput = ent.MaxOutput
+			}
+			byID[ent.ID] = cur
+			return
+		}
+		byID[ent.ID] = ent
 	}
 	for _, g := range cfg.Groups {
 		if g.Enabled {
-			add(g.Name)
+			add(modelEntry{ID: g.Name, OwnedBy: "falcon-group"})
 		}
 	}
 	for alias := range cfg.Aliases {
-		add(alias)
+		add(modelEntry{ID: alias, OwnedBy: "falcon-alias"})
 	}
 	for _, p := range cfg.Providers {
 		if !p.Enabled {
 			continue
 		}
 		for _, m := range p.ActiveModels() {
-			add(p.ID + "/" + m)
+			add(modelEntry{ID: p.ID + "/" + m, OwnedBy: p.ID})
 		}
 	}
 	if s.plugins != nil {
 		for _, pm := range s.plugins.AllModels() {
-			add(pm.ID)
+			ctxWin := pm.Context
+			if ctxWin == 0 && pm.Limit != nil {
+				ctxWin = pm.Limit.Context
+			}
+			maxOut := pm.Output
+			if maxOut == 0 && pm.Limit != nil {
+				maxOut = pm.Limit.Output
+			}
+			add(modelEntry{
+				ID:            pm.ID,
+				Name:          pm.Name,
+				ContextWindow: ctxWin,
+				MaxOutput:     maxOut,
+			})
 		}
 	}
-	sort.Strings(models)
-	return models
+	out := make([]modelEntry, 0, len(byID))
+	for _, ent := range byID {
+		out = append(out, ent)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].ID < out[j].ID
+	})
+	return out
+}
+
+func modelToOpenAIMap(ent modelEntry, created int64) map[string]any {
+	ownedBy := ent.OwnedBy
+	if ownedBy == "" {
+		ownedBy = "falcon"
+		if prov, _, ok := strings.Cut(ent.ID, "/"); ok && prov != "" {
+			ownedBy = prov
+		}
+	}
+	obj := map[string]any{
+		"id":       ent.ID,
+		"object":   "model",
+		"created":  created,
+		"owned_by": ownedBy,
+	}
+	if ent.Name != "" {
+		obj["name"] = ent.Name
+	}
+	if ent.ContextWindow > 0 {
+		obj["context_window"] = ent.ContextWindow
+		obj["context_length"] = ent.ContextWindow
+	}
+	if ent.MaxOutput > 0 {
+		obj["max_output_tokens"] = ent.MaxOutput
+		obj["max_tokens"] = ent.MaxOutput
+	}
+	return obj
 }
 
 func (s *Server) handleListModels(w http.ResponseWriter, id access.Identity) {
-	models := s.collectModels(id)
-	data := make([]map[string]any, 0, len(models))
+	entries := s.collectModelEntries(id)
+	data := make([]map[string]any, 0, len(entries))
 	now := time.Now().Unix()
-	for _, m := range models {
-		ownedBy := "falcon"
-		if prov, _, ok := strings.Cut(m, "/"); ok {
-			ownedBy = prov
-		}
-		data = append(data, map[string]any{
-			"id":       m,
-			"object":   "model",
-			"created":  now,
-			"owned_by": ownedBy,
-		})
+	for _, ent := range entries {
+		data = append(data, modelToOpenAIMap(ent, now))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"object": "list",
@@ -438,34 +596,104 @@ func (s *Server) handleListModels(w http.ResponseWriter, id access.Identity) {
 	})
 }
 
+func (s *Server) handleGetModel(w http.ResponseWriter, id access.Identity, modelID string) {
+	target := strings.TrimSpace(modelID)
+	if target == "" {
+		access.WriteError(w, http.StatusNotFound, "Model not found")
+		return
+	}
+	entries := s.collectModelEntries(id)
+	now := time.Now().Unix()
+	for _, ent := range entries {
+		if ent.ID == target {
+			writeJSON(w, http.StatusOK, modelToOpenAIMap(ent, now))
+			return
+		}
+	}
+	suffix := "/" + target
+	for _, ent := range entries {
+		if strings.HasSuffix(ent.ID, suffix) {
+			writeJSON(w, http.StatusOK, modelToOpenAIMap(ent, now))
+			return
+		}
+	}
+	access.WriteError(w, http.StatusNotFound, "Model not found: "+target)
+}
+
+func (s *Server) handleGeminiListModels(w http.ResponseWriter, id access.Identity) {
+	entries := s.collectModelEntries(id)
+	out := make([]map[string]any, 0, len(entries))
+	for _, ent := range entries {
+		displayName := ent.Name
+		if displayName == "" {
+			displayName = ent.ID
+		}
+		item := map[string]any{
+			"name":        "models/" + ent.ID,
+			"baseModelId": ent.ID,
+			"displayName": displayName,
+			"supportedGenerationMethods": []string{
+				"generateContent",
+				"streamGenerateContent",
+				"countTokens",
+			},
+		}
+		if ent.ContextWindow > 0 {
+			item["inputTokenLimit"] = ent.ContextWindow
+		}
+		if ent.MaxOutput > 0 {
+			item["outputTokenLimit"] = ent.MaxOutput
+		}
+		out = append(out, item)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"models": out})
+}
+
 func (s *Server) handleOllamaTags(w http.ResponseWriter, id access.Identity) {
-	models := s.collectModels(id)
-	out := make([]map[string]any, 0, len(models))
-	for _, m := range models {
+	entries := s.collectModelEntries(id)
+	out := make([]map[string]any, 0, len(entries))
+	for _, ent := range entries {
 		out = append(out, map[string]any{
-			"name":  m,
-			"model": m,
+			"name":  ent.ID,
+			"model": ent.ID,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"models": out})
 }
 
-func (s *Server) handleCountTokens(w http.ResponseWriter, r *http.Request) {
+func estimateTokensFromBody(w http.ResponseWriter, r *http.Request) (int, bool) {
 	raw, err := io.ReadAll(io.LimitReader(r.Body, 8<<20))
 	if err != nil {
 		access.WriteError(w, http.StatusBadRequest, "Failed to read request body")
-		return
+		return 0, false
 	}
-	// Approximate tokens (~4 chars/token) cleanly
-	tokens := max(1, len(raw)/4)
-	writeJSON(w, http.StatusOK, map[string]any{"input_tokens": tokens})
+	// Approximate tokens (~4 chars/token) cleanly.
+	return max(1, len(raw)/4), true
 }
 
-func (s *Server) handleGeminiRoute(w http.ResponseWriter, r *http.Request, id access.Identity, settings types.Settings) {
-	rest := strings.TrimPrefix(r.URL.Path, "/v1beta/models/")
+func (s *Server) handleCountTokens(w http.ResponseWriter, r *http.Request) {
+	if tokens, ok := estimateTokensFromBody(w, r); ok {
+		writeJSON(w, http.StatusOK, map[string]any{"input_tokens": tokens})
+	}
+}
+
+func (s *Server) handleGeminiRoute(w http.ResponseWriter, r *http.Request, normPath string, id access.Identity, settings types.Settings) {
+	rest := normPath
+	switch {
+	case strings.HasPrefix(rest, "/v1beta/models/"):
+		rest = strings.TrimPrefix(rest, "/v1beta/models/")
+	case strings.HasPrefix(rest, "/v1/models/"):
+		rest = strings.TrimPrefix(rest, "/v1/models/")
+	}
 	modelPart, action, hasAction := strings.Cut(rest, ":")
 	if !hasAction || modelPart == "" {
 		access.WriteError(w, http.StatusBadRequest, "Invalid Gemini model path")
+		return
+	}
+	if action == "countTokens" {
+		if tokens, ok := estimateTokensFromBody(w, r); ok {
+			writeJSON(w, http.StatusOK, map[string]any{"totalTokens": tokens})
+		}
 		return
 	}
 	s.handleCompletion(w, r, id, settings, types.ProtocolGemini, modelPart+":"+action)

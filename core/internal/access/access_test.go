@@ -181,3 +181,42 @@ func TestOptionalAccessKeyAndLanDefaults(t *testing.T) {
 		t.Fatalf("expected 401 when requireAccessKey=true on LAN, got %d", code)
 	}
 }
+
+func TestApplyCORSDefaultAndRestricted(t *testing.T) {
+	// Default (empty CorsOrigins) permits WebView / local web client Origins and reflects custom SDK headers.
+	preReq := httptest.NewRequest(http.MethodOptions, "/v1/models", nil)
+	preReq.Header.Set("Origin", "http://localhost")
+	preReq.Header.Set("Access-Control-Request-Headers", "Authorization, x-stainless-os, Content-Type")
+	preRec := httptest.NewRecorder()
+	if handled := ApplyCORS(preRec, preReq, nil); !handled {
+		t.Fatal("expected OPTIONS preflight to return handled=true")
+	}
+	if preRec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204 preflight, got %d", preRec.Code)
+	}
+	if got := preRec.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Fatalf("expected wildcard ACAO for empty CorsOrigins, got %q", got)
+	}
+	if got := preRec.Header().Get("Access-Control-Allow-Headers"); got != "Authorization, x-stainless-os, Content-Type" {
+		t.Fatalf("expected reflected ACAH, got %q", got)
+	}
+
+	// Non-empty CorsOrigins enforces the allowlist strictly.
+	restrictReq := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	restrictReq.Header.Set("Origin", "https://evil.example")
+	restrictRec := httptest.NewRecorder()
+	if handled := ApplyCORS(restrictRec, restrictReq, []string{"https://app.example"}); handled {
+		t.Fatal("expected GET not to be treated as preflight")
+	}
+	if got := restrictRec.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("expected disallowed origin to have no ACAO, got %q", got)
+	}
+
+	okReq := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	okReq.Header.Set("Origin", "https://app.example")
+	okRec := httptest.NewRecorder()
+	ApplyCORS(okRec, okReq, []string{"https://app.example"})
+	if got := okRec.Header().Get("Access-Control-Allow-Origin"); got != "https://app.example" {
+		t.Fatalf("expected matched origin ACAO, got %q", got)
+	}
+}

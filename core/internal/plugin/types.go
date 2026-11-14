@@ -133,6 +133,19 @@ func (p PluginProviderState) ActiveModels() []PluginModelInfo {
 	return out
 }
 
+// IsCallable reports whether this plugin provider is authenticated or supports keyless calls.
+func (p PluginProviderState) IsCallable() bool {
+	if p.Authenticated || len(p.Methods) == 0 || p.ID == "opencode-zen-free" {
+		return true
+	}
+	for _, m := range p.Methods {
+		if m.Keyless {
+			return true
+		}
+	}
+	return false
+}
+
 // InstalledPluginState is returned in GET /admin/v1/state -> plugins.
 type InstalledPluginState struct {
 	Package     string                `json:"package"`

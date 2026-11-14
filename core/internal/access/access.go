@@ -229,27 +229,37 @@ func ModelAllowed(id Identity, requestedModel string) bool {
 	return false
 }
 
-// ApplyCORS writes CORS headers based on settings.CorsOrigins. Returns true if it handled an OPTIONS preflight.
+// ApplyCORS writes CORS headers based on settings.CorsOrigins. When origins is empty,
+// any Origin is allowed so local WebView and desktop web clients work without extra setup.
+// Returns true if it handled an OPTIONS preflight.
 func ApplyCORS(w http.ResponseWriter, r *http.Request, origins []string) bool {
 	origin := strings.TrimSpace(r.Header.Get("Origin"))
-	if origin != "" && len(origins) > 0 {
+	if origin != "" {
 		matched := ""
-		for _, allowed := range origins {
-			a := strings.TrimSpace(allowed)
-			if a == "*" {
-				matched = "*"
-				break
-			}
-			if strings.EqualFold(a, origin) {
-				matched = origin
-				break
+		if len(origins) == 0 {
+			matched = "*"
+		} else {
+			for _, allowed := range origins {
+				a := strings.TrimSpace(allowed)
+				if a == "*" {
+					matched = "*"
+					break
+				}
+				if strings.EqualFold(a, origin) {
+					matched = origin
+					break
+				}
 			}
 		}
 		if matched != "" {
+			allowHeaders := "Authorization, Content-Type, Accept, Origin, X-Requested-With, X-API-Key, X-Goog-API-Key, Anthropic-Version, Anthropic-Beta, OpenAI-Beta, OpenAI-Organization, OpenAI-Project"
+			if reqHdrs := strings.TrimSpace(r.Header.Get("Access-Control-Request-Headers")); reqHdrs != "" {
+				allowHeaders = reqHdrs
+			}
 			w.Header().Set("Access-Control-Allow-Origin", matched)
 			w.Header().Set("Vary", "Origin")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-API-Key, X-Goog-API-Key, Anthropic-Version")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", allowHeaders)
 			w.Header().Set("Access-Control-Max-Age", "3600")
 		}
 	}

@@ -56,11 +56,14 @@ class _ClientExamplesSheetState extends State<ClientExamplesSheet> {
     final geminiSnippet = 'GEMINI_API_BASE=$_selectedEndpoint/v1beta\n'
         'GEMINI_API_KEY=$keyPlaceholder';
     final curlSnippet = widget.requireAccessKey
-        ? 'curl $_selectedEndpoint/v1/chat/completions \\\n'
+        ? 'curl $_selectedEndpoint/v1/models \\\n'
+            '  -H "Authorization: Bearer sk-flc-your-key"\n\n'
+            'curl $_selectedEndpoint/v1/chat/completions \\\n'
             '  -H "Authorization: Bearer sk-flc-your-key" \\\n'
             '  -H "Content-Type: application/json" \\\n'
             '  -d \'{"model":"gpt-4o","messages":[{"role":"user","content":"ping"}]}\''
-        : 'curl $_selectedEndpoint/v1/chat/completions \\\n'
+        : 'curl $_selectedEndpoint/v1/models\n\n'
+            'curl $_selectedEndpoint/v1/chat/completions \\\n'
             '  -H "Content-Type: application/json" \\\n'
             '  -d \'{"model":"gpt-4o","messages":[{"role":"user","content":"ping"}]}\'';
 

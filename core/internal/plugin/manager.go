@@ -660,8 +660,10 @@ func (m *Manager) StatePlugins() []InstalledPluginState {
 				pp.LastError = pp.ListError
 			}
 			provIDs = append(provIDs, pp.ID)
-			for _, mod := range pp.ActiveModels() {
-				models = append(models, pp.ID+"/"+mod.ID)
+			if pp.IsCallable() {
+				for _, mod := range pp.ActiveModels() {
+					models = append(models, pp.ID+"/"+mod.ID)
+				}
 			}
 			for _, opt := range pp.Options {
 				optMap[opt.Key] = opt.Value
@@ -1022,7 +1024,7 @@ func (m *Manager) HasModel(providerID, modelID string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	p, ok := m.providers[providerID]
-	if !ok {
+	if !ok || !p.IsCallable() {
 		return false
 	}
 	for _, mod := range p.ActiveModels() {
@@ -1042,6 +1044,9 @@ func (m *Manager) FindProvidersForModel(modelID string) []string {
 	defer m.mu.RUnlock()
 	var out []string
 	for _, p := range m.providers {
+		if !p.IsCallable() {
+			continue
+		}
 		for _, mod := range p.ActiveModels() {
 			if mod.ID == modelID {
 				out = append(out, p.ID)
@@ -1058,8 +1063,14 @@ func (m *Manager) AllModels() []PluginModelInfo {
 	defer m.mu.RUnlock()
 	var out []PluginModelInfo
 	for _, p := range m.providers {
+		if !p.IsCallable() {
+			continue
+		}
 		for _, mod := range p.ActiveModels() {
 			cp := mod
+			if cp.Protocol == "" {
+				cp.Protocol = p.Protocol
+			}
 			cp.ID = p.ID + "/" + mod.ID
 			out = append(out, cp)
 		}
