@@ -634,6 +634,35 @@ class FalconGatewayService : Service() {
             return joined
         }
 
+        private fun isValidLanIpv4(addr: Inet4Address): Boolean {
+            if (addr.isLoopbackAddress ||
+                addr.isLinkLocalAddress ||
+                addr.isMulticastAddress ||
+                addr.isAnyLocalAddress
+            ) {
+                return false
+            }
+            val raw = addr.address
+            if (raw.size != 4) return false
+            val b0 = raw[0].toInt() and 0xFF
+            val b1 = raw[1].toInt() and 0xFF
+            // Filter Clash / Sing-box TUN fake-IP subnet 198.18.0.0/15
+            if (b0 == 198 && (b1 == 18 || b1 == 19)) {
+                return false
+            }
+            return true
+        }
+
+        private fun isRfc1918(ip: String): Boolean {
+            val parts = ip.split('.')
+            if (parts.size != 4) return false
+            val a = parts[0].toIntOrNull() ?: return false
+            val b = parts[1].toIntOrNull() ?: return false
+            if (a == 10) return true
+            if (a == 172 && b in 16..31) return true
+            return a == 192 && b == 168
+        }
+
         @Suppress("DEPRECATION")
         private fun refreshNetworkSnapshot(context: Context): Boolean {
             val prevIps = cachedLanIpv4s.get()
@@ -650,9 +679,17 @@ class FalconGatewayService : Service() {
                         caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
                     if (!isLanTransport) continue
                     val lp = cm.getLinkProperties(network) ?: continue
+                    val ifaceName = lp.interfaceName?.lowercase().orEmpty()
+                    if (ifaceName.startsWith("tun") ||
+                        ifaceName.startsWith("utun") ||
+                        ifaceName.startsWith("ppp") ||
+                        ifaceName.startsWith("wg")
+                    ) {
+                        continue
+                    }
                     for (linkAddr in lp.linkAddresses) {
                         val addr = linkAddr.address
-                        if (addr is Inet4Address && !addr.isLoopbackAddress && !addr.isLinkLocalAddress) {
+                        if (addr is Inet4Address && isValidLanIpv4(addr)) {
                             addr.hostAddress?.let { discovered.add(it) }
                         }
                     }
@@ -669,6 +706,11 @@ class FalconGatewayService : Service() {
                     if (name.startsWith("rmnet") ||
                         name.startsWith("ccmni") ||
                         name.startsWith("pdp") ||
+                        name.startsWith("clat") ||
+                        name.startsWith("tun") ||
+                        name.startsWith("utun") ||
+                        name.startsWith("ppp") ||
+                        name.startsWith("wg") ||
                         name.startsWith("dummy")
                     ) {
                         continue
@@ -676,14 +718,16 @@ class FalconGatewayService : Service() {
                     val addrs = nif.inetAddresses
                     while (addrs.hasMoreElements()) {
                         val addr = addrs.nextElement()
-                        if (addr is Inet4Address && !addr.isLoopbackAddress && !addr.isLinkLocalAddress) {
+                        if (addr is Inet4Address && isValidLanIpv4(addr)) {
                             addr.hostAddress?.let { discovered.add(it) }
                         }
                     }
                 }
             }
 
-            val nextIps = discovered.toList()
+            val nextIps = discovered.sortedWith(
+                compareByDescending<String> { isRfc1918(it) }.thenBy { it },
+            )
             cachedLanIpv4s.set(nextIps)
             val nextDns = resolveActiveDns(context)
             return nextIps != prevIps || nextDns != prevDns

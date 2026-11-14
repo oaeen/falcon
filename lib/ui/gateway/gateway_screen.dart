@@ -124,7 +124,6 @@ class GatewayScreen extends ConsumerWidget {
           children: [
             _HeroMascotCard(
               running: running,
-              loopbackUrl: loopbackUrl,
               uptimeText: _formatDuration(uptimeSec),
               modelCount: snapshot.status.modelCount,
               activeProviders:
@@ -135,7 +134,6 @@ class GatewayScreen extends ConsumerWidget {
               onToggle: () => ref
                   .read(gatewayRuntimeProvider.notifier)
                   .toggleGateway(!running),
-              onCopyEndpoint: () => _copyEndpoint(context, loopbackUrl),
             ),
             if (runtime.isAndroid && !runtime.batteryOptimizationIgnored) ...[
               const SizedBox(height: 12),
@@ -374,28 +372,33 @@ class GatewayScreen extends ConsumerWidget {
 class _HeroMascotCard extends StatelessWidget {
   const _HeroMascotCard({
     required this.running,
-    required this.loopbackUrl,
     required this.uptimeText,
     required this.modelCount,
     required this.activeProviders,
     required this.runtime,
     required this.onToggle,
-    required this.onCopyEndpoint,
   });
 
   final bool running;
-  final String loopbackUrl;
   final String uptimeText;
   final int modelCount;
   final int activeProviders;
   final GatewayRuntimeStatus runtime;
   final VoidCallback onToggle;
-  final VoidCallback onCopyEndpoint;
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final c = FalconColors.of(context);
+    final keepAliveLabels = <String>[
+      if (running && runtime.isAndroid) l10n.gatewayBadgeForeground,
+      if (runtime.isAndroid && runtime.wakeLockHeld) l10n.gatewayBadgeWakeLock,
+      if (runtime.isAndroid && runtime.wifiLockHeld) l10n.gatewayBadgeWifiLock,
+      if (running && runtime.isIos && runtime.backgroundAudioKeepAlive)
+        l10n.gatewayBadgeAudioKeepAlive,
+      if (running && runtime.isDesktop) l10n.gatewayBadgeDesktopProcess,
+    ];
+
     return FalconCard(
       radius: FalconTheme.heroRadius,
       backgroundColor: c.card,
@@ -406,22 +409,13 @@ class _HeroMascotCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Container(
+              SizedBox(
                 key: const ValueKey('hero-mascot-avatar'),
-                width: 58,
-                height: 58,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: c.border,
-                    width: FalconTheme.borderWidth,
-                  ),
-                ),
-                clipBehavior: Clip.antiAlias,
+                width: 52,
+                height: 52,
                 child: Image.asset(
-                  'assets/branding/falcon_icon_256.png',
-                  fit: BoxFit.cover,
+                  'assets/branding/falcon_mascot.png',
+                  fit: BoxFit.contain,
                   errorBuilder: (_, _, _) => Center(
                     child: Icon(
                       Icons.bolt_rounded,
@@ -431,15 +425,12 @@ class _HeroMascotCard extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      crossAxisAlignment: WrapCrossAlignment.center,
+                    Row(
                       children: [
                         Text(
                           l10n.appName,
@@ -450,6 +441,7 @@ class _HeroMascotCard extends StatelessWidget {
                             color: c.textPrimary,
                           ),
                         ),
+                        const SizedBox(width: 8),
                         StatusPill(
                           label: running
                               ? l10n.statusRunning
@@ -460,7 +452,7 @@ class _HeroMascotCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Text(
                       running
                           ? l10n.gatewayHeroSubtitleRunning
@@ -477,116 +469,62 @@ class _HeroMascotCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              InkWell(
-                onTap: onCopyEndpoint,
-                borderRadius: BorderRadius.circular(FalconTheme.pillRadius),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: c.accentSoft,
-                    borderRadius: BorderRadius.circular(FalconTheme.pillRadius),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          loopbackUrl,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: FalconTheme.mono(
-                            context,
-                            fontSize: 12.5,
-                            color: c.accent,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Icon(Icons.copy_outlined, size: 14, color: c.accent),
-                    ],
-                  ),
-                ),
-              ),
-              StatusPill(
-                label: '${l10n.gatewayModelsCount} $modelCount',
-                tone: StatusTone.neutral,
-              ),
-              StatusPill(
-                label: '${l10n.gatewayProvidersCount} $activeProviders',
-                tone: StatusTone.neutral,
-              ),
-              if (running && runtime.isAndroid)
-                StatusPill(
-                  label: l10n.gatewayBadgeForeground,
-                  tone: StatusTone.accent,
-                ),
-              if (runtime.isAndroid && runtime.wakeLockHeld)
-                StatusPill(
-                  label: l10n.gatewayBadgeWakeLock,
-                  tone: StatusTone.neutral,
-                ),
-              if (runtime.isAndroid && runtime.wifiLockHeld)
-                StatusPill(
-                  label: l10n.gatewayBadgeWifiLock,
-                  tone: StatusTone.neutral,
-                ),
-              if (running && runtime.isIos && runtime.backgroundAudioKeepAlive)
-                StatusPill(
-                  label: l10n.gatewayBadgeAudioKeepAlive,
-                  tone: StatusTone.accent,
-                ),
-              if (running && runtime.isDesktop)
-                StatusPill(
-                  label: l10n.gatewayBadgeDesktopProcess,
-                  tone: StatusTone.accent,
-                ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: c.cardSubtle,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: c.border,
-                width: FalconTheme.borderWidth,
-              ),
-            ),
-            child: Row(
+          if (keepAliveLabels.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Row(
               children: [
-                Expanded(
-                  child: _StatCell(
-                    label: l10n.gatewayUptime,
-                    value: uptimeText,
-                  ),
+                Icon(
+                  Icons.verified_user_outlined,
+                  size: 14,
+                  color: c.accent,
                 ),
+                const SizedBox(width: 6),
                 Expanded(
-                  child: _StatCell(
-                    label: l10n.gatewayModelsCount,
-                    value: '$modelCount',
-                  ),
-                ),
-                Expanded(
-                  child: _StatCell(
-                    label: l10n.gatewayProvidersCount,
-                    value: '$activeProviders',
+                  child: Text(
+                    keepAliveLabels.join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: c.textSecondary,
+                    ),
                   ),
                 ),
               ],
             ),
+          ],
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _StatTile(
+                  icon: Icons.schedule_rounded,
+                  label: l10n.gatewayUptime,
+                  value: uptimeText,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _StatTile(
+                  icon: Icons.widgets_outlined,
+                  label: l10n.gatewayModelsCount,
+                  value: '$modelCount',
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _StatTile(
+                  icon: Icons.hub_outlined,
+                  label: l10n.gatewayProvidersCount,
+                  value: '$activeProviders',
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 14),
           SizedBox(
-            height: 50,
+            height: 48,
             child: running
                 ? FilledButton.tonalIcon(
                     key: const ValueKey('gateway-service-toggle-btn'),
@@ -607,38 +545,58 @@ class _HeroMascotCard extends StatelessWidget {
   }
 }
 
-class _StatCell extends StatelessWidget {
-  const _StatCell({required this.label, required this.value});
+class _StatTile extends StatelessWidget {
+  const _StatTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
+  final IconData icon;
   final String label;
   final String value;
 
   @override
   Widget build(BuildContext context) {
     final c = FalconColors.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(fontSize: 11.5, color: c.textSecondary),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: FalconTheme.tabular(
-            TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: c.textPrimary,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      decoration: BoxDecoration(
+        color: c.cardSubtle,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 13.5, color: c.textMuted),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 11.5, color: c.textSecondary),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: FalconTheme.tabular(
+              TextStyle(
+                fontSize: 16.5,
+                fontWeight: FontWeight.w700,
+                color: c.textPrimary,
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

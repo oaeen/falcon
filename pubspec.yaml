@@ -65,6 +65,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/branding/falcon_icon_256.png
+    - assets/branding/falcon_mascot.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

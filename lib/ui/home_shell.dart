@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/l10n.dart';
-import '../state/gateway_state.dart';
 import '../theme/falcon_theme.dart';
 import 'gateway/gateway_screen.dart';
 import 'monitor/monitor_screen.dart';
@@ -26,8 +25,6 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final c = FalconColors.of(context);
-    final running =
-        ref.watch(gatewayRuntimeProvider).value?.running ?? false;
 
     final titles = [
       l10n.gatewayTitle,
@@ -76,24 +73,9 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         final useRail = constraints.maxWidth >= 720;
         return Scaffold(
           appBar: AppBar(
-            title: Row(
-              children: [
-                Flexible(
-                  child: Text(
-                    titles[_tabIndex],
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: running ? c.success : c.textMuted,
-                  ),
-                ),
-              ],
+            title: Text(
+              titles[_tabIndex],
+              overflow: TextOverflow.ellipsis,
             ),
             actions: [
               FilledButton.tonalIcon(

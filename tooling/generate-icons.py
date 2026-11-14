@@ -263,6 +263,25 @@ def build_adaptive_preview_sheet(
     return sheet.convert("RGB")
 
 
+def make_transparent_mascot(fg_1024: Image.Image, out_size: int = 256, fill_ratio: float = 0.90) -> Image.Image:
+    """Crop the transparent foreground SVG render tightly and center on a clean RGBA canvas."""
+    bbox = fg_1024.getbbox()
+    if bbox is None:
+        return fg_1024.resize((out_size, out_size), Image.Resampling.LANCZOS)
+    cropped = fg_1024.crop(bbox)
+    cw, ch = cropped.size
+    target_max = int(round(out_size * fill_ratio))
+    scale = min(target_max / cw, target_max / ch)
+    nw = max(1, int(round(cw * scale)))
+    nh = max(1, int(round(ch * scale)))
+    resized = cropped.resize((nw, nh), Image.Resampling.LANCZOS)
+    canvas = Image.new("RGBA", (out_size, out_size), (0, 0, 0, 0))
+    ox = (out_size - nw) // 2
+    oy = (out_size - nh) // 2
+    canvas.paste(resized, (ox, oy), resized)
+    return canvas
+
+
 def main() -> None:
     rounded_svg_path = BRANDING_DIR / "falcon_icon.svg"
     fg_svg_path = BRANDING_DIR / "falcon_icon_foreground.svg"
@@ -281,9 +300,12 @@ def main() -> None:
         rounded_1024 = rounded_2048.resize((1024, 1024), Image.Resampling.LANCZOS)
         square_1024 = square_2048.resize((1024, 1024), Image.Resampling.LANCZOS)
 
-        # Flutter Hero badge asset (256x256 pure white backdrop with centered falcon).
+        # Flutter assets: 256x256 white-backdrop icon + tight transparent mascot.
         square_1024.resize((256, 256), Image.Resampling.LANCZOS).save(
             BRANDING_DIR / "falcon_icon_256.png", format="PNG", optimize=True
+        )
+        make_transparent_mascot(fg_1024, 256).save(
+            BRANDING_DIR / "falcon_mascot.png", format="PNG", optimize=True
         )
 
         # Visual preview sheets.

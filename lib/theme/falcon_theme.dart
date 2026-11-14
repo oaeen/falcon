@@ -196,8 +196,8 @@ abstract final class FalconTheme {
       onPrimaryContainer: isDark ? const Color(0xFFD6E2FA) : c.accent,
       secondary: c.textSecondary,
       onSecondary: isDark ? c.scaffold : Colors.white,
-      secondaryContainer: c.cardSubtle,
-      onSecondaryContainer: c.textPrimary,
+      secondaryContainer: c.accentSoft,
+      onSecondaryContainer: isDark ? const Color(0xFFD6E2FA) : c.accent,
       tertiary: c.warm,
       onTertiary: isDark ? const Color(0xFF281800) : Colors.white,
       tertiaryContainer: c.warmSoft,
@@ -410,8 +410,6 @@ abstract final class FalconTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: c.accent,
-          foregroundColor: onPrimary,
           elevation: 0,
           shape: const StadiumBorder(),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),

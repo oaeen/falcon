@@ -29,17 +29,17 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Hero Mascot avatar uses pure white background without blue square
-      final avatarBox = tester.widget<Container>(
+      // Hero Mascot renders transparent bird asset without nested bordered square
+      final mascotBox = tester.widget<SizedBox>(
         find.byKey(const ValueKey('hero-mascot-avatar')),
       );
-      expect(
-        (avatarBox.decoration as BoxDecoration?)?.color,
-        Colors.white,
-      );
+      final mascotImage = (mascotBox.child as Image).image as AssetImage;
+      expect(mascotImage.assetName, 'assets/branding/falcon_mascot.png');
 
-      // Hero Mascot Card renders loopback endpoint and Stop CTA while running
-      expect(find.text('http://127.0.0.1:18787'), findsAtLeastNWidgets(1));
+      // Hero Mascot Card renders 3 metric tiles + single loopback endpoint row + Stop CTA
+      expect(find.text('http://127.0.0.1:18787'), findsOneWidget);
+      expect(find.text('可用模型'), findsOneWidget);
+      expect(find.text('活跃渠道'), findsOneWidget);
       expect(
         find.byKey(const ValueKey('gateway-service-toggle-btn')),
         findsOneWidget,
