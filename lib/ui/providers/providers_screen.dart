@@ -5,6 +5,7 @@ import '../../data/admin_models.dart';
 import '../../l10n/l10n.dart';
 import '../../state/gateway_state.dart';
 import '../../theme/falcon_theme.dart';
+import '../monitor/playground_sheet.dart';
 import '../widgets/confirm_dialog.dart';
 import '../widgets/falcon_card.dart';
 import '../widgets/falcon_row.dart';
@@ -13,6 +14,8 @@ import '../widgets/responsive_body.dart';
 import '../widgets/sheet_frame.dart';
 import '../widgets/status_pill.dart';
 import 'plugin_market_sheet.dart';
+import 'plugin_models_sheet.dart';
+import 'plugin_provider_labels.dart';
 import 'plugin_signin_sheet.dart';
 import 'provider_editor_sheet.dart';
 
@@ -27,7 +30,9 @@ class ProvidersScreen extends ConsumerStatefulWidget {
 
 class _ProvidersScreenState extends ConsumerState<ProvidersScreen> {
   _ProvidersSegment _segment = _ProvidersSegment.api;
+  bool _userSwitchedSegment = false;
   final Set<String> _testingIds = {};
+  final Set<String> _refreshingPlugins = {};
 
   Future<void> _testProvider(UpstreamProvider provider) async {
     final client = ref.read(adminApiClientProvider);
@@ -38,6 +43,18 @@ class _ProvidersScreenState extends ConsumerState<ProvidersScreen> {
       await ref.read(gatewayAdminStateProvider.notifier).reload();
     } finally {
       if (mounted) setState(() => _testingIds.remove(provider.id));
+    }
+  }
+
+  Future<void> _refreshPlugin(InstalledPlugin plugin) async {
+    final client = ref.read(adminApiClientProvider);
+    if (client == null) return;
+    setState(() => _refreshingPlugins.add(plugin.id));
+    try {
+      await client.refreshPlugins(pluginId: plugin.id);
+      await ref.read(gatewayAdminStateProvider.notifier).reload();
+    } finally {
+      if (mounted) setState(() => _refreshingPlugins.remove(plugin.id));
     }
   }
 
@@ -67,6 +84,20 @@ class _ProvidersScreenState extends ConsumerState<ProvidersScreen> {
     await ref.read(gatewayAdminStateProvider.notifier).reload();
   }
 
+  List<InstalledPlugin> _dedupeInstalled(List<InstalledPlugin> raw) {
+    final byCanonical = <String, InstalledPlugin>{};
+    for (final pl in raw) {
+      final key = canonicalPluginPackage(pl.package);
+      final existing = byCanonical[key];
+      if (existing == null ||
+          (pl.accounts.length > existing.accounts.length) ||
+          (pl.providerDetails.length > existing.providerDetails.length)) {
+        byCanonical[key] = pl;
+      }
+    }
+    return byCanonical.values.toList(growable: false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -75,6 +106,13 @@ class _ProvidersScreenState extends ConsumerState<ProvidersScreen> {
         ref.watch(gatewayRuntimeProvider).value?.running ?? false;
     final snapshot =
         ref.watch(gatewayAdminStateProvider).value ?? const AdminStateSnapshot();
+    final plugins = _dedupeInstalled(snapshot.plugins);
+
+    final activeSegment = _userSwitchedSegment
+        ? _segment
+        : (plugins.isNotEmpty && snapshot.providers.isEmpty
+            ? _ProvidersSegment.plugins
+            : _segment);
 
     return ResponsiveBody(
       child: RefreshIndicator(
@@ -82,202 +120,229 @@ class _ProvidersScreenState extends ConsumerState<ProvidersScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
           children: [
-          if (!runtimeRunning) ...[
-            const GatewayOfflineCard(),
-            const SizedBox(height: 14),
-          ],
-          SegmentedButton<_ProvidersSegment>(
-            segments: [
-              ButtonSegment(
-                value: _ProvidersSegment.api,
-                label: Text(l10n.providersSegmentApi),
-              ),
-              ButtonSegment(
-                value: _ProvidersSegment.plugins,
-                label: Text(l10n.providersSegmentPlugins),
-              ),
+            if (!runtimeRunning) ...[
+              const GatewayOfflineCard(),
+              const SizedBox(height: 14),
             ],
-            selected: {_segment},
-            onSelectionChanged: (s) => setState(() => _segment = s.first),
-          ),
-          const SizedBox(height: 14),
-          if (_segment == _ProvidersSegment.api) ...[
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    key: const ValueKey('add-preset-provider-btn'),
-                    onPressed: runtimeRunning
-                        ? () => showPresetPickerSheet(context, ref)
-                        : null,
-                    icon: const Icon(Icons.apps_rounded, size: 17),
-                    label: Text(l10n.providersAddFromPreset),
-                  ),
+            SegmentedButton<_ProvidersSegment>(
+              segments: [
+                ButtonSegment(
+                  value: _ProvidersSegment.api,
+                  label: Text(l10n.providersSegmentApi),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: FilledButton.icon(
-                    key: const ValueKey('add-custom-provider-btn'),
-                    onPressed: runtimeRunning
-                        ? () => showFalconSheet<bool>(
-                              context: context,
-                              builder: (_) => const ProviderEditorSheet(),
-                            )
-                        : null,
-                    icon: const Icon(Icons.add_rounded, size: 17),
-                    label: Text(l10n.providersAddCustom),
-                  ),
+                ButtonSegment(
+                  value: _ProvidersSegment.plugins,
+                  label: Text(l10n.providersSegmentPlugins),
                 ),
               ],
+              selected: {activeSegment},
+              onSelectionChanged: (s) => setState(() {
+                _segment = s.first;
+                _userSwitchedSegment = true;
+              }),
             ),
             const SizedBox(height: 14),
-            if (snapshot.providers.isEmpty)
-              FalconCard(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      l10n.providersApiEmpty,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: c.textPrimary,
-                      ),
+            if (activeSegment == _ProvidersSegment.api) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      key: const ValueKey('add-preset-provider-btn'),
+                      onPressed: runtimeRunning
+                          ? () => showPresetPickerSheet(context, ref)
+                          : null,
+                      icon: const Icon(Icons.apps_rounded, size: 17),
+                      label: Text(l10n.providersAddFromPreset),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      l10n.providersApiEmptyHint,
-                      style: TextStyle(fontSize: 12.5, color: c.textSecondary),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton.icon(
+                      key: const ValueKey('add-custom-provider-btn'),
+                      onPressed: runtimeRunning
+                          ? () => showFalconSheet<bool>(
+                                context: context,
+                                builder: (_) => const ProviderEditorSheet(),
+                              )
+                          : null,
+                      icon: const Icon(Icons.add_rounded, size: 17),
+                      label: Text(l10n.providersAddCustom),
                     ),
-                  ],
-                ),
-              )
-            else
-              FalconCard(
-                child: Column(
-                  children: [
-                    for (var i = 0; i < snapshot.providers.length; i++) ...[
-                      if (i > 0) const FalconDivider(),
-                      _ProviderRow(
-                        provider: snapshot.providers[i],
-                        testing: _testingIds.contains(snapshot.providers[i].id),
-                        onTap: () => showFalconSheet<bool>(
-                          context: context,
-                          builder: (_) => ProviderEditorSheet(
-                            existing: snapshot.providers[i],
-                          ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              if (snapshot.providers.isEmpty)
+                FalconCard(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.providersApiEmpty,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: c.textPrimary,
                         ),
-                        onTest: () => _testProvider(snapshot.providers[i]),
-                        onToggle: (enabled) async {
-                          final client = ref.read(adminApiClientProvider);
-                          if (client == null) return;
-                          final p = snapshot.providers[i];
-                          await client.upsertProvider(
-                            id: p.id,
-                            name: p.name,
-                            preset: p.preset,
-                            protocol: p.protocol,
-                            baseUrl: p.baseUrl,
-                            enabled: enabled,
-                            keys: p.keys,
-                            models: p.models,
-                            selectedModels: p.selectedModels,
-                          );
-                          await ref
-                              .read(gatewayAdminStateProvider.notifier)
-                              .reload();
-                        },
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        l10n.providersApiEmptyHint,
+                        style:
+                            TextStyle(fontSize: 12.5, color: c.textSecondary),
                       ),
                     ],
-                  ],
-                ),
-              ),
-          ] else ...[
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    key: const ValueKey('open-plugin-market-btn'),
-                    onPressed: runtimeRunning
-                        ? () => showFalconSheet<void>(
-                              context: context,
-                              builder: (_) => const PluginMarketSheet(),
-                            )
-                        : null,
-                    icon: const Icon(Icons.extension_outlined, size: 17),
-                    label: Text(l10n.pluginsDirectoryAction),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: runtimeRunning
-                        ? () async {
+                )
+              else
+                FalconCard(
+                  child: Column(
+                    children: [
+                      for (var i = 0; i < snapshot.providers.length; i++) ...[
+                        if (i > 0) const FalconDivider(),
+                        _ProviderRow(
+                          provider: snapshot.providers[i],
+                          testing:
+                              _testingIds.contains(snapshot.providers[i].id),
+                          onTap: () => showFalconSheet<bool>(
+                            context: context,
+                            builder: (_) => ProviderEditorSheet(
+                              existing: snapshot.providers[i],
+                            ),
+                          ),
+                          onTest: () => _testProvider(snapshot.providers[i]),
+                          onToggle: (enabled) async {
                             final client = ref.read(adminApiClientProvider);
                             if (client == null) return;
-                            await client.refreshPluginQuotas();
+                            final p = snapshot.providers[i];
+                            await client.upsertProvider(
+                              id: p.id,
+                              name: p.name,
+                              preset: p.preset,
+                              protocol: p.protocol,
+                              baseUrl: p.baseUrl,
+                              enabled: enabled,
+                              keys: p.keys,
+                              models: p.models,
+                              selectedModels: p.selectedModels,
+                            );
                             await ref
                                 .read(gatewayAdminStateProvider.notifier)
                                 .reload();
-                          }
-                        : null,
-                    icon: const Icon(Icons.refresh_rounded, size: 17),
-                    label: Text(l10n.pluginsRefreshQuotas),
+                          },
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            if (snapshot.plugins.isEmpty)
-              FalconCard(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      l10n.pluginsEmpty,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: c.textPrimary,
+            ] else ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      key: const ValueKey('open-plugin-market-btn'),
+                      onPressed: runtimeRunning
+                          ? () => showFalconSheet<void>(
+                                context: context,
+                                builder: (_) => const PluginMarketSheet(),
+                              )
+                          : null,
+                      icon: const Icon(Icons.extension_outlined, size: 17),
+                      label: Text(l10n.pluginsDirectoryAction),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: runtimeRunning
+                          ? () async {
+                              final client = ref.read(adminApiClientProvider);
+                              if (client == null) return;
+                              await client.refreshPluginQuotas();
+                              await ref
+                                  .read(gatewayAdminStateProvider.notifier)
+                                  .reload();
+                            }
+                          : null,
+                      icon: const Icon(Icons.refresh_rounded, size: 17),
+                      label: Text(l10n.pluginsRefreshQuotas),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              if (plugins.isEmpty)
+                FalconCard(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.pluginsEmpty,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: c.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        l10n.pluginsEmptyHint,
+                        style:
+                            TextStyle(fontSize: 12.5, color: c.textSecondary),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                for (var i = 0; i < plugins.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 12),
+                  _PluginCard(
+                    plugin: plugins[i],
+                    settingsSelectedModels:
+                        snapshot.settings.pluginSelectedModels,
+                    refreshing: _refreshingPlugins.contains(plugins[i].id),
+                    onRefresh: () => _refreshPlugin(plugins[i]),
+                    onToggle: (enabled) async {
+                      final client = ref.read(adminApiClientProvider);
+                      if (client == null) return;
+                      await client.togglePlugin(
+                        plugins[i].package,
+                        enabled,
+                      );
+                      await ref
+                          .read(gatewayAdminStateProvider.notifier)
+                          .reload();
+                    },
+                    onSignIn: (providerId) => showFalconSheet<bool>(
+                      context: context,
+                      builder: (_) => PluginSignInSheet(
+                        plugin: plugins[i],
+                        providerId: providerId,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      l10n.pluginsEmptyHint,
-                      style: TextStyle(fontSize: 12.5, color: c.textSecondary),
+                    onSelectModels: (detail, displayTitle) =>
+                        showFalconSheet<bool>(
+                      context: context,
+                      builder: (_) => PluginModelsSheet(
+                        plugin: plugins[i],
+                        detail: detail,
+                        displayTitle: displayTitle,
+                      ),
                     ),
-                  ],
-                ),
-              )
-            else
-              for (var i = 0; i < snapshot.plugins.length; i++) ...[
-                if (i > 0) const SizedBox(height: 12),
-                _PluginCard(
-                  plugin: snapshot.plugins[i],
-                  onToggle: (enabled) async {
-                    final client = ref.read(adminApiClientProvider);
-                    if (client == null) return;
-                    await client.togglePlugin(
-                      snapshot.plugins[i].package,
-                      enabled,
-                    );
-                    await ref.read(gatewayAdminStateProvider.notifier).reload();
-                  },
-                  onSignIn: () => showFalconSheet<bool>(
-                    context: context,
-                    builder: (_) =>
-                        PluginSignInSheet(plugin: snapshot.plugins[i]),
+                    onTestModel: (modelTarget) => showFalconSheet<void>(
+                      context: context,
+                      builder: (_) => PlaygroundSheet(initialModel: modelTarget),
+                    ),
+                    onCheckin: _checkin,
+                    onSignOut: _signOut,
                   ),
-                  onCheckin: _checkin,
-                  onSignOut: _signOut,
-                ),
-              ],
+                ],
+            ],
           ],
-        ],
+        ),
       ),
-    ),
     );
   }
 }
@@ -384,7 +449,8 @@ class _ProviderRow extends StatelessWidget {
                 ),
                 OutlinedButton(
                   onPressed: testing ? null : onTest,
-                  child: Text(testing ? l10n.providersTesting : l10n.actionTest),
+                  child:
+                      Text(testing ? l10n.providersTesting : l10n.actionTest),
                 ),
               ],
             ),
@@ -398,15 +464,26 @@ class _ProviderRow extends StatelessWidget {
 class _PluginCard extends StatelessWidget {
   const _PluginCard({
     required this.plugin,
+    required this.settingsSelectedModels,
+    required this.refreshing,
+    required this.onRefresh,
     required this.onToggle,
     required this.onSignIn,
+    required this.onSelectModels,
+    required this.onTestModel,
     required this.onCheckin,
     required this.onSignOut,
   });
 
   final InstalledPlugin plugin;
+  final Map<String, List<String>> settingsSelectedModels;
+  final bool refreshing;
+  final VoidCallback onRefresh;
   final ValueChanged<bool> onToggle;
-  final VoidCallback onSignIn;
+  final ValueChanged<String?> onSignIn;
+  final void Function(PluginProviderDetail detail, String displayTitle)
+      onSelectModels;
+  final ValueChanged<String> onTestModel;
   final ValueChanged<PluginAccount> onCheckin;
   final ValueChanged<PluginAccount> onSignOut;
 
@@ -414,26 +491,41 @@ class _PluginCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final c = FalconColors.of(context);
+    final details = sortPluginProviderDetails(
+      plugin.resolvedProviderDetails(settingsSelectedModels),
+    );
 
     return FalconCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 12, 10),
+            padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
             child: Row(
               children: [
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        plugin.name,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: c.textPrimary,
-                        ),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            plugin.name,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: c.textPrimary,
+                            ),
+                          ),
+                          if (plugin.version.isNotEmpty)
+                            StatusPill(
+                              label: 'v${plugin.version}',
+                              tone: StatusTone.neutral,
+                            ),
+                        ],
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -447,14 +539,133 @@ class _PluginCard extends StatelessWidget {
                     ],
                   ),
                 ),
+                IconButton(
+                  tooltip: l10n.pluginsRefreshPlugin,
+                  onPressed: refreshing ? null : onRefresh,
+                  icon: refreshing
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.sync_rounded, size: 20),
+                ),
                 Switch(value: plugin.enabled, onChanged: onToggle),
               ],
             ),
           ),
-          for (final acct in plugin.accounts) ...[
-            const FalconDivider(),
+          if (plugin.error.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Text(
+                plugin.error,
+                style: TextStyle(fontSize: 12, color: c.danger),
+              ),
+            ),
+          for (final detail in details) ...[
+            const FalconDivider(indent: 0),
+            _PluginProviderSection(
+              detail: detail,
+              displayTitle: localizedPluginProviderTitle(l10n, detail),
+              onSignIn: () => onSignIn(detail.id),
+              onSelectModels: () => onSelectModels(
+                detail,
+                localizedPluginProviderTitle(l10n, detail),
+              ),
+              onTestModel: onTestModel,
+              onCheckin: onCheckin,
+              onSignOut: onSignOut,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PluginProviderSection extends StatelessWidget {
+  const _PluginProviderSection({
+    required this.detail,
+    required this.displayTitle,
+    required this.onSignIn,
+    required this.onSelectModels,
+    required this.onTestModel,
+    required this.onCheckin,
+    required this.onSignOut,
+  });
+
+  final PluginProviderDetail detail;
+  final String displayTitle;
+  final VoidCallback onSignIn;
+  final VoidCallback onSelectModels;
+  final ValueChanged<String> onTestModel;
+  final ValueChanged<PluginAccount> onCheckin;
+  final ValueChanged<PluginAccount> onSignOut;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final c = FalconColors.of(context);
+    final activeIds = detail.effectiveModelIds;
+    final modelSummary = detail.selectedModels.isEmpty
+        ? l10n.pluginsAutoAllModels(detail.models.length)
+        : l10n.pluginsSelectedModelsSummary(
+            detail.selectedModels.length,
+            detail.models.length,
+          );
+    final firstTestTarget = activeIds.isEmpty
+        ? null
+        : (activeIds.first.contains('/')
+            ? activeIds.first
+            : '${detail.id}/${activeIds.first}');
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 14, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                displayTitle,
+                style: TextStyle(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w600,
+                  color: c.textPrimary,
+                ),
+              ),
+              StatusPill(
+                label: detail.authenticated
+                    ? l10n.pluginsAuthenticated
+                    : l10n.pluginsNotAuthenticated,
+                tone: detail.authenticated
+                    ? StatusTone.success
+                    : StatusTone.warning,
+              ),
+            ],
+          ),
+          if (detail.lastError.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              detail.lastError,
+              style: TextStyle(fontSize: 12, color: c.danger),
+            ),
+          ],
+          for (final acct in detail.accounts) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+              decoration: BoxDecoration(
+                color: c.cardSubtle,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: c.border,
+                  width: FalconTheme.borderWidth,
+                ),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -463,6 +674,8 @@ class _PluginCard extends StatelessWidget {
                       Expanded(
                         child: Text(
                           acct.label.isNotEmpty ? acct.label : acct.id,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 13.5,
                             fontWeight: FontWeight.w500,
@@ -470,10 +683,11 @@ class _PluginCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      TextButton(
-                        onPressed: () => onCheckin(acct),
-                        child: Text(l10n.pluginsCheckin),
-                      ),
+                      if (detail.supportsCheckin || acct.quotas.isEmpty)
+                        TextButton(
+                          onPressed: () => onCheckin(acct),
+                          child: Text(l10n.pluginsCheckin),
+                        ),
                       TextButton(
                         onPressed: () => onSignOut(acct),
                         child: Text(
@@ -486,7 +700,7 @@ class _PluginCard extends StatelessWidget {
                   if (acct.quotas.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Wrap(
-                      spacing: 8,
+                      spacing: 6,
                       runSpacing: 6,
                       children: acct.quotas.map((q) {
                         final ratio = q.limit > 0
@@ -505,11 +719,61 @@ class _PluginCard extends StatelessWidget {
               ),
             ),
           ],
-          const FalconDivider(),
-          FalconRow(
-            icon: Icons.login_rounded,
-            title: l10n.pluginsSignIn,
-            onTap: onSignIn,
+          if (detail.models.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              modelSummary,
+              style: FalconTheme.tabular(
+                TextStyle(fontSize: 12, color: c.textSecondary),
+              ),
+            ),
+            if (activeIds.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final id in activeIds.take(4))
+                    StatusPill(label: id, tone: StatusTone.neutral),
+                  if (activeIds.length > 4)
+                    StatusPill(
+                      label: '+${activeIds.length - 4}',
+                      tone: StatusTone.accent,
+                    ),
+                ],
+              ),
+            ],
+          ],
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton.tonalIcon(
+                key: ValueKey('plugin-signin-${detail.id}'),
+                onPressed: onSignIn,
+                icon: const Icon(Icons.login_rounded, size: 17),
+                label: Text(
+                  detail.accounts.isEmpty
+                      ? l10n.pluginsSignIn
+                      : l10n.pluginsAddAccount,
+                ),
+              ),
+              if (detail.supportsModels || detail.models.isNotEmpty)
+                OutlinedButton.icon(
+                  key: ValueKey('plugin-models-${detail.id}'),
+                  onPressed: onSelectModels,
+                  icon: const Icon(Icons.tune_rounded, size: 17),
+                  label: Text(l10n.pluginsSelectModels),
+                ),
+              if (firstTestTarget != null)
+                OutlinedButton.icon(
+                  key: ValueKey('plugin-test-${detail.id}'),
+                  onPressed: () => onTestModel(firstTestTarget),
+                  icon: const Icon(Icons.terminal_rounded, size: 17),
+                  label: Text(l10n.pluginsTestInPlayground),
+                ),
+            ],
           ),
         ],
       ),

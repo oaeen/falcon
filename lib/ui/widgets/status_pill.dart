@@ -27,16 +27,16 @@ class StatusPill extends StatelessWidget {
       StatusTone.danger => (c.danger, c.dangerSoft),
     };
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(FalconTheme.pillRadius),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 13, color: fg),
+            Icon(icon, size: 13.5, color: fg),
             const SizedBox(width: 4),
           ],
           Flexible(
@@ -47,7 +47,7 @@ class StatusPill extends StatelessWidget {
               style: FalconTheme.tabular(
                 TextStyle(
                   fontSize: 11.5,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                   color: fg,
                 ),
               ),

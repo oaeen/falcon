@@ -20,6 +20,35 @@ List<String> _asStringList(Object? value) {
   return const [];
 }
 
+Map<String, List<String>> _asStringListMap(Object? value) {
+  if (value is! Map) return const {};
+  final out = <String, List<String>>{};
+  for (final entry in value.entries) {
+    final k = '${entry.key}'.trim();
+    if (k.isEmpty) continue;
+    out[k] = _asStringList(entry.value);
+  }
+  return out;
+}
+
+/// Canonicalizes npm plugin package names so `@magpie-community/*` and bare
+/// `opencode-*` entries map cleanly without duplicates in market/installed lists.
+String canonicalPluginPackage(String raw) {
+  var s = raw.trim().toLowerCase();
+  if (s.startsWith('@magpie-community/')) {
+    s = s.substring('@magpie-community/'.length);
+  }
+  final slash = s.indexOf('/');
+  final at = s.lastIndexOf('@');
+  if (at > 0 && at > slash) {
+    s = s.substring(0, at);
+  }
+  return s;
+}
+
+bool isSamePluginPackage(String a, String b) =>
+    canonicalPluginPackage(a) == canonicalPluginPackage(b);
+
 bool _asBool(Object? value, {bool fallback = false}) {
   if (value is bool) return value;
   if (value is String) {
@@ -55,6 +84,7 @@ class CoreStatus {
     this.listenAddr = '127.0.0.1:18787',
     this.port = 18787,
     this.lanEnabled = false,
+    this.requireAccessKey = false,
     this.allowLocalKeyless = true,
     this.lanUrls = const [],
     this.loopbackUrl = 'http://127.0.0.1:18787',
@@ -68,6 +98,7 @@ class CoreStatus {
   final String listenAddr;
   final int port;
   final bool lanEnabled;
+  final bool requireAccessKey;
   final bool allowLocalKeyless;
   final List<String> lanUrls;
   final String loopbackUrl;
@@ -85,6 +116,7 @@ class CoreStatus {
       listenAddr: _asString(json['listenAddr'], fallback: '127.0.0.1:$port'),
       port: port,
       lanEnabled: _asBool(json['lanEnabled']),
+      requireAccessKey: _asBool(json['requireAccessKey']),
       allowLocalKeyless: _asBool(json['allowLocalKeyless'], fallback: true),
       lanUrls: _asStringList(json['lanUrls']),
       loopbackUrl: loopback.isNotEmpty ? loopback : 'http://127.0.0.1:$port',
@@ -98,106 +130,59 @@ class CoreStatus {
 }
 
 @immutable
-class RedactRule {
-  const RedactRule({
-    required this.id,
-    required this.name,
-    required this.pattern,
-    this.replacement = '[REDACTED]',
-    this.enabled = true,
-  });
-
-  final String id;
-  final String name;
-  final String pattern;
-  final String replacement;
-  final bool enabled;
-
-  factory RedactRule.fromJson(Map<String, dynamic> json) {
-    return RedactRule(
-      id: _asString(json['id']),
-      name: _asString(json['name']),
-      pattern: _asString(json['pattern']),
-      replacement: _asString(json['replacement'], fallback: '[REDACTED]'),
-      enabled: _asBool(json['enabled'], fallback: true),
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'pattern': pattern,
-        'replacement': replacement,
-        'enabled': enabled,
-      };
-}
-
-@immutable
 class GatewaySettings {
   const GatewaySettings({
     this.port = 18787,
     this.lanEnabled = false,
+    this.requireAccessKey = false,
     this.allowLocalKeyless = true,
     this.allowIps = const [],
     this.corsOrigins = const [],
-    this.redactEnabled = false,
-    this.redactRestore = true,
-    this.redactRules = const [],
-    this.redactAllow = const [],
     this.chinaMirror = true,
+    this.pluginSelectedModels = const {},
   });
 
   final int port;
   final bool lanEnabled;
+  final bool requireAccessKey;
   final bool allowLocalKeyless;
   final List<String> allowIps;
   final List<String> corsOrigins;
-  final bool redactEnabled;
-  final bool redactRestore;
-  final List<RedactRule> redactRules;
-  final List<String> redactAllow;
   final bool chinaMirror;
+  final Map<String, List<String>> pluginSelectedModels;
 
   factory GatewaySettings.fromJson(Map<String, dynamic> json) {
     return GatewaySettings(
       port: _asInt(json['port'], fallback: 18787),
       lanEnabled: _asBool(json['lanEnabled']),
+      requireAccessKey: _asBool(json['requireAccessKey']),
       allowLocalKeyless: _asBool(json['allowLocalKeyless'], fallback: true),
       allowIps: _asStringList(json['allowIps']),
       corsOrigins: _asStringList(json['corsOrigins']),
-      redactEnabled: _asBool(json['redactEnabled']),
-      redactRestore: _asBool(json['redactRestore'], fallback: true),
-      redactRules: _asList(json['redactRules'])
-          .map((e) => RedactRule.fromJson(_asMap(e)))
-          .toList(growable: false),
-      redactAllow: _asStringList(json['redactAllow']),
       chinaMirror: _asBool(json['chinaMirror'], fallback: true),
+      pluginSelectedModels: _asStringListMap(json['pluginSelectedModels']),
     );
   }
 
   GatewaySettings copyWith({
     int? port,
     bool? lanEnabled,
+    bool? requireAccessKey,
     bool? allowLocalKeyless,
     List<String>? allowIps,
     List<String>? corsOrigins,
-    bool? redactEnabled,
-    bool? redactRestore,
-    List<RedactRule>? redactRules,
-    List<String>? redactAllow,
     bool? chinaMirror,
+    Map<String, List<String>>? pluginSelectedModels,
   }) {
     return GatewaySettings(
       port: port ?? this.port,
       lanEnabled: lanEnabled ?? this.lanEnabled,
+      requireAccessKey: requireAccessKey ?? this.requireAccessKey,
       allowLocalKeyless: allowLocalKeyless ?? this.allowLocalKeyless,
       allowIps: allowIps ?? this.allowIps,
       corsOrigins: corsOrigins ?? this.corsOrigins,
-      redactEnabled: redactEnabled ?? this.redactEnabled,
-      redactRestore: redactRestore ?? this.redactRestore,
-      redactRules: redactRules ?? this.redactRules,
-      redactAllow: redactAllow ?? this.redactAllow,
       chinaMirror: chinaMirror ?? this.chinaMirror,
+      pluginSelectedModels: pluginSelectedModels ?? this.pluginSelectedModels,
     );
   }
 }
@@ -476,6 +461,182 @@ class PluginAccount {
 }
 
 @immutable
+class PluginModelInfo {
+  const PluginModelInfo({
+    required this.id,
+    this.name = '',
+    this.protocol = 'openai',
+    this.context = 0,
+    this.output = 0,
+    this.free = false,
+    this.reasoning = false,
+    this.toolCall = false,
+  });
+
+  final String id;
+  final String name;
+  final String protocol;
+  final int context;
+  final int output;
+  final bool free;
+  final bool reasoning;
+  final bool toolCall;
+
+  String get displayName => name.isNotEmpty ? name : id;
+
+  factory PluginModelInfo.fromJson(Map<String, dynamic> json) {
+    final limit = _asMap(json['limit']);
+    final caps = _asMap(json['capabilities']);
+    final id = _asString(json['id']);
+    return PluginModelInfo(
+      id: id,
+      name: _asString(json['name'], fallback: id),
+      protocol: _asString(json['protocol'], fallback: 'openai'),
+      context: _asInt(
+        json['context'],
+        fallback: _asInt(limit['context']),
+      ),
+      output: _asInt(
+        json['output'],
+        fallback: _asInt(limit['output']),
+      ),
+      free: _asBool(json['free']),
+      reasoning: _asBool(
+        json['reasoning'],
+        fallback: _asBool(caps['reasoning']),
+      ),
+      toolCall: _asBool(
+        json['toolCall'],
+        fallback: _asBool(
+          json['tool_call'],
+          fallback: _asBool(
+            caps['toolcall'],
+            fallback: _asBool(caps['toolCall']),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+@immutable
+class PluginAuthMethod {
+  const PluginAuthMethod({
+    required this.index,
+    this.type = 'oauth',
+    required this.label,
+    this.keyless = false,
+    this.placeholder = '',
+  });
+
+  final int index;
+
+  /// `'api'` | `'oauth'`
+  final String type;
+  final String label;
+  final bool keyless;
+  final String placeholder;
+
+  bool get isDesktopOnly {
+    final lower = label.toLowerCase();
+    return lower.contains('local app') ||
+        lower.contains('desktop') ||
+        lower.contains('read local') ||
+        lower.contains('本地客户端') ||
+        lower.contains('本地登录态');
+  }
+
+  factory PluginAuthMethod.fromJson(Map<String, dynamic> json, {int fallbackIndex = 0}) {
+    return PluginAuthMethod(
+      index: _asInt(json['index'], fallback: fallbackIndex),
+      type: _asString(json['type'], fallback: 'oauth'),
+      label: _asString(json['label']),
+      keyless: _asBool(json['keyless']),
+      placeholder: _asString(json['placeholder']),
+    );
+  }
+}
+
+@immutable
+class PluginProviderDetail {
+  const PluginProviderDetail({
+    required this.id,
+    required this.name,
+    this.protocol = 'openai',
+    this.authenticated = false,
+    this.accountCount = 0,
+    this.accounts = const [],
+    this.models = const [],
+    this.selectedModels = const [],
+    this.methods = const [],
+    this.supportsUsage = false,
+    this.supportsCheckin = false,
+    this.supportsModels = true,
+    this.lastError = '',
+  });
+
+  final String id;
+  final String name;
+  final String protocol;
+  final bool authenticated;
+  final int accountCount;
+  final List<PluginAccount> accounts;
+  final List<PluginModelInfo> models;
+  final List<String> selectedModels;
+  final List<PluginAuthMethod> methods;
+  final bool supportsUsage;
+  final bool supportsCheckin;
+  final bool supportsModels;
+  final String lastError;
+
+  List<String> get effectiveModelIds => selectedModels.isNotEmpty
+      ? selectedModels
+      : models.map((m) => m.id).where((id) => id.isNotEmpty).toList();
+
+  factory PluginProviderDetail.fromJson(Map<String, dynamic> json) {
+    final accts = _asList(json['accounts'])
+        .map((e) => PluginAccount.fromJson(_asMap(e)))
+        .toList(growable: false);
+    final rawMethods = _asList(json['methods']);
+    final parsedMethods = <PluginAuthMethod>[];
+    for (var i = 0; i < rawMethods.length; i++) {
+      parsedMethods.add(
+        PluginAuthMethod.fromJson(_asMap(rawMethods[i]), fallbackIndex: i),
+      );
+    }
+    final models = _asList(json['models'])
+        .map((e) => e is String
+            ? PluginModelInfo(id: e, name: e)
+            : PluginModelInfo.fromJson(_asMap(e)))
+        .where((m) => m.id.isNotEmpty)
+        .toList(growable: false);
+    final id = _asString(json['id']);
+    final authRaw = json['authenticated'];
+    final authenticated =
+        authRaw is bool ? authRaw : accts.any((a) => a.enabled);
+    final err = _asString(json['lastError'], fallback: _asString(json['listError']));
+    return PluginProviderDetail(
+      id: id,
+      name: _asString(json['name'], fallback: id),
+      protocol: _asString(json['protocol'], fallback: 'openai'),
+      authenticated: authenticated,
+      accountCount: _asInt(json['accountCount'], fallback: accts.length),
+      accounts: accts,
+      models: models,
+      selectedModels: _asStringList(json['selectedModels']),
+      methods: parsedMethods,
+      supportsUsage: _asBool(json['supportsUsage']),
+      supportsCheckin: _asBool(json['supportsCheckin']),
+      supportsModels: _asBool(
+        json['supportsModels'],
+        fallback: models.isNotEmpty || parsedMethods.isNotEmpty,
+      ),
+      lastError: err,
+    );
+  }
+}
+
+@immutable
 class InstalledPlugin {
   const InstalledPlugin({
     required this.package,
@@ -484,10 +645,12 @@ class InstalledPlugin {
     this.installed = true,
     this.enabled = true,
     this.version = '',
+    this.error = '',
     this.providers = const [],
     this.models = const [],
     this.options = const {},
     this.accounts = const [],
+    this.providerDetails = const [],
   });
 
   final String package;
@@ -496,10 +659,87 @@ class InstalledPlugin {
   final bool installed;
   final bool enabled;
   final String version;
+  final String error;
   final List<String> providers;
   final List<String> models;
   final Map<String, dynamic> options;
   final List<PluginAccount> accounts;
+  final List<PluginProviderDetail> providerDetails;
+
+  /// Resolves per-provider rich details, synthesizing clean fallbacks from
+  /// `providers` + `accounts` + `models` when a fixture omits `providerDetails`.
+  List<PluginProviderDetail> resolvedProviderDetails(
+    Map<String, List<String>> settingsSelectedModels,
+  ) {
+    if (providerDetails.isNotEmpty) {
+      return providerDetails
+          .map((d) {
+            final override = settingsSelectedModels[d.id];
+            if (d.selectedModels.isEmpty &&
+                override != null &&
+                override.isNotEmpty) {
+              return PluginProviderDetail(
+                id: d.id,
+                name: d.name,
+                protocol: d.protocol,
+                authenticated: d.authenticated,
+                accountCount: d.accountCount,
+                accounts: d.accounts,
+                models: d.models,
+                selectedModels: override,
+                methods: d.methods,
+                supportsUsage: d.supportsUsage,
+                supportsCheckin: d.supportsCheckin,
+                supportsModels: d.supportsModels,
+                lastError: d.lastError,
+              );
+            }
+            return d;
+          })
+          .toList(growable: false);
+    }
+
+    final pids = providers.isNotEmpty
+        ? providers
+        : accounts
+            .map((a) => a.providerId)
+            .where((p) => p.isNotEmpty)
+            .toSet()
+            .toList(growable: false);
+    if (pids.isEmpty) {
+      return [
+        PluginProviderDetail(
+          id: id,
+          name: name,
+          authenticated: accounts.any((a) => a.enabled),
+          accountCount: accounts.length,
+          accounts: accounts,
+          models: models
+              .map((m) => PluginModelInfo(id: m, name: m))
+              .toList(growable: false),
+          selectedModels: settingsSelectedModels[id] ?? const [],
+          supportsUsage: accounts.any((a) => a.quotas.isNotEmpty),
+        ),
+      ];
+    }
+    return pids.map((pid) {
+      final accts = accounts
+          .where((a) => a.providerId == pid || a.providerId.isEmpty)
+          .toList(growable: false);
+      return PluginProviderDetail(
+        id: pid,
+        name: pid,
+        authenticated: accts.any((a) => a.enabled),
+        accountCount: accts.length,
+        accounts: accts,
+        models: models
+            .map((m) => PluginModelInfo(id: m, name: m))
+            .toList(growable: false),
+        selectedModels: settingsSelectedModels[pid] ?? const [],
+        supportsUsage: accts.any((a) => a.quotas.isNotEmpty),
+      );
+    }).toList(growable: false);
+  }
 
   factory InstalledPlugin.fromJson(Map<String, dynamic> json) {
     final pkg = _asString(json['package']);
@@ -511,11 +751,15 @@ class InstalledPlugin {
       installed: _asBool(json['installed'], fallback: true),
       enabled: _asBool(json['enabled'], fallback: true),
       version: _asString(json['version']),
+      error: _asString(json['error']),
       providers: _asStringList(json['providers']),
       models: _asStringList(json['models']),
       options: _asMap(json['options']),
       accounts: _asList(json['accounts'])
           .map((e) => PluginAccount.fromJson(_asMap(e)))
+          .toList(growable: false),
+      providerDetails: _asList(json['providerDetails'])
+          .map((e) => PluginProviderDetail.fromJson(_asMap(e)))
           .toList(growable: false),
     );
   }
@@ -583,17 +827,23 @@ class PluginSignInSession {
   const PluginSignInSession({
     required this.sessionId,
     required this.phase,
+    this.providerId = '',
+    this.method = '',
     this.url,
+    this.instructions,
     this.userCode,
     this.promptLabel,
     this.error,
     this.account,
   });
 
-  /// Phases: `starting`, `open`, `device`, `prompt`, `done`, `failed`
+  /// Phases: `starting`, `open`, `open_auto`, `device`, `prompt`, `done`, `failed`
   final String sessionId;
   final String phase;
+  final String providerId;
+  final String method;
   final String? url;
+  final String? instructions;
   final String? userCode;
   final String? promptLabel;
   final String? error;
@@ -603,9 +853,20 @@ class PluginSignInSession {
     final acct = json['account'];
     return PluginSignInSession(
       sessionId: _asString(json['sessionId']),
-      phase: _asString(json['phase'], fallback: _asString(json['status'], fallback: 'starting')),
+      phase: _asString(
+        json['phase'],
+        fallback: _asString(json['status'], fallback: 'starting'),
+      ),
+      providerId: _asString(json['providerId']),
+      method: _asString(json['method']),
       url: json['url'] as String?,
-      userCode: json['userCode'] as String?,
+      instructions: json['instructions'] as String?,
+      userCode: _asString(
+        json['userCode'],
+        fallback: _asString(json['deviceCode']),
+      ).isEmpty
+          ? null
+          : _asString(json['userCode'], fallback: _asString(json['deviceCode'])),
       promptLabel: json['promptLabel'] as String?,
       error: json['error'] as String?,
       account: acct is Map ? PluginAccount.fromJson(_asMap(acct)) : null,
@@ -712,80 +973,6 @@ class ModelAlias {
 }
 
 @immutable
-class RedactSummary {
-  const RedactSummary({
-    this.enabled = false,
-    this.restore = true,
-    this.totalHits = 0,
-    this.builtinRules = 0,
-    this.customRules = 0,
-  });
-
-  final bool enabled;
-  final bool restore;
-  final int totalHits;
-  final int builtinRules;
-  final int customRules;
-
-  factory RedactSummary.fromJson(Map<String, dynamic> json) {
-    return RedactSummary(
-      enabled: _asBool(json['enabled']),
-      restore: _asBool(json['restore'], fallback: true),
-      totalHits: _asInt(json['totalHits'] ?? json['hits']),
-      builtinRules: _asInt(json['builtinRules']),
-      customRules: _asInt(json['customRules']),
-    );
-  }
-}
-
-@immutable
-class RedactHit {
-  const RedactHit({
-    required this.ruleName,
-    required this.placeholder,
-    this.category = '',
-    this.match = '',
-    this.count = 1,
-  });
-
-  final String ruleName;
-  final String placeholder;
-  final String category;
-  final String match;
-  final int count;
-
-  factory RedactHit.fromJson(Map<String, dynamic> json) {
-    return RedactHit(
-      ruleName: _asString(json['ruleName'] ?? json['rule'], fallback: 'Rule'),
-      placeholder: _asString(json['placeholder']),
-      category: _asString(json['category']),
-      match: _asString(json['match']),
-      count: _asInt(json['count'], fallback: 1),
-    );
-  }
-}
-
-@immutable
-class RedactPreviewResult {
-  const RedactPreviewResult({
-    required this.maskedText,
-    this.hits = const [],
-  });
-
-  final String maskedText;
-  final List<RedactHit> hits;
-
-  factory RedactPreviewResult.fromJson(Map<String, dynamic> json) {
-    return RedactPreviewResult(
-      maskedText: _asString(json['maskedText']),
-      hits: _asList(json['hits'])
-          .map((e) => RedactHit.fromJson(_asMap(e)))
-          .toList(growable: false),
-    );
-  }
-}
-
-@immutable
 class UsageSummary {
   const UsageSummary({
     this.range = 'today',
@@ -846,7 +1033,6 @@ class RequestLogEntry {
     this.outputTokens = 0,
     this.estimatedUsd = 0,
     this.failoverAttempts = 0,
-    this.redactionCount = 0,
     this.error = '',
   });
 
@@ -866,7 +1052,6 @@ class RequestLogEntry {
   final int outputTokens;
   final double estimatedUsd;
   final int failoverAttempts;
-  final int redactionCount;
   final String error;
 
   factory RequestLogEntry.fromJson(Map<String, dynamic> json) {
@@ -892,7 +1077,6 @@ class RequestLogEntry {
       outputTokens: _asInt(json['outputTokens']),
       estimatedUsd: _asDouble(json['estimatedUsd']),
       failoverAttempts: _asInt(json['failoverAttempts']),
-      redactionCount: _asInt(json['redactionCount']),
       error: _asString(json['error']),
     );
   }
@@ -908,7 +1092,6 @@ class AdminStateSnapshot {
     this.plugins = const [],
     this.groups = const [],
     this.aliases = const [],
-    this.redactSummary = const RedactSummary(),
     this.usageSummary = const UsageSummary(),
   });
 
@@ -919,7 +1102,6 @@ class AdminStateSnapshot {
   final List<InstalledPlugin> plugins;
   final List<RoutingGroup> groups;
   final List<ModelAlias> aliases;
-  final RedactSummary redactSummary;
   final UsageSummary usageSummary;
 
   List<String> get availableTargets {
@@ -936,8 +1118,17 @@ class AdminStateSnapshot {
     }
     for (final pl in plugins) {
       if (!pl.enabled) continue;
-      for (final m in pl.models) {
-        result.add(m);
+      if (pl.providerDetails.isNotEmpty) {
+        for (final detail in pl.providerDetails) {
+          final modelIds = detail.effectiveModelIds;
+          for (final m in modelIds) {
+            result.add(m.contains('/') ? m : '${detail.id}/$m');
+          }
+        }
+      } else {
+        for (final m in pl.models) {
+          result.add(m);
+        }
       }
     }
     return result.toSet().toList(growable: false);
@@ -960,7 +1151,6 @@ class AdminStateSnapshot {
           .map((e) => RoutingGroup.fromJson(_asMap(e)))
           .toList(growable: false),
       aliases: ModelAlias.listFromJson(json['aliases']),
-      redactSummary: RedactSummary.fromJson(_asMap(json['redactSummary'])),
       usageSummary: UsageSummary.fromJson(_asMap(json['usageSummary'])),
     );
   }

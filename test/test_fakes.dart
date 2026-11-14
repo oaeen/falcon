@@ -111,17 +111,50 @@ class FakePlatformBridge implements PlatformBridge {
 }
 
 class MockAdminBackend {
+  MockAdminBackend({bool withDefaultProvider = true}) {
+    if (withDefaultProvider) {
+      providers.add({
+        'id': 'deepseek-1',
+        'name': 'DeepSeek',
+        'preset': 'deepseek',
+        'protocol': 'openai',
+        'baseUrl': 'https://api.deepseek.com/v1',
+        'enabled': true,
+        'keys': [
+          {
+            'id': 'pk-1',
+            'label': 'Primary',
+            'maskedSecret': 'sk-...9876',
+            'enabled': true,
+            'weight': 1,
+          },
+        ],
+        'models': ['deepseek-chat', 'deepseek-reasoner'],
+        'selectedModels': ['deepseek-chat'],
+        'lastTest': {
+          'ok': true,
+          'statusCode': 200,
+          'latencyMs': 185,
+          'model': 'deepseek-chat',
+          'replyPreview': 'OK',
+        },
+      });
+    }
+  }
+
   bool lanEnabled = false;
+  bool requireAccessKey = false;
   bool allowLocalKeyless = true;
   String? lastChatAuthorizationHeader;
-  bool redactEnabled = true;
-  bool redactRestore = true;
   bool chinaMirror = true;
   int port = 18787;
   List<String> allowIps = [];
   List<String> corsOrigins = [];
-  List<Map<String, dynamic>> redactRules = [];
-  List<String> redactAllow = ['127.0.0.1'];
+  Map<String, List<String>> pluginSelectedModels = {};
+  Map<String, dynamic>? lastSignInStartBody;
+  Map<String, dynamic>? lastPluginModelsBody;
+  bool simulateOpenAutoSignIn = false;
+  int _openAutoPolls = 0;
 
   final List<Map<String, dynamic>> keys = [
     {
@@ -139,54 +172,111 @@ class MockAdminBackend {
     },
   ];
 
-  final List<Map<String, dynamic>> providers = [
-    {
-      'id': 'deepseek-1',
-      'name': 'DeepSeek',
-      'preset': 'deepseek',
-      'protocol': 'openai',
-      'baseUrl': 'https://api.deepseek.com/v1',
-      'enabled': true,
-      'keys': [
-        {
-          'id': 'pk-1',
-          'label': 'Primary',
-          'maskedSecret': 'sk-...9876',
-          'enabled': true,
-          'weight': 1,
-        },
-      ],
-      'models': ['deepseek-chat', 'deepseek-reasoner'],
-      'selectedModels': ['deepseek-chat'],
-      'lastTest': {
-        'ok': true,
-        'statusCode': 200,
-        'latencyMs': 185,
-        'model': 'deepseek-chat',
-        'replyPreview': 'OK',
-      },
-    },
-  ];
+  final List<Map<String, dynamic>> providers = [];
 
   final List<Map<String, dynamic>> plugins = [
     {
-      'package': '@magpie-community/opencode-zen-free-auth',
-      'id': 'opencode-zen-free',
-      'name': 'OpenCode Zen Free',
+      'package': '@magpie-community/opencode-workbuddy-auth',
+      'id': 'workbuddy-auth',
+      'name': 'WorkBuddy Auth',
       'installed': true,
       'enabled': true,
-      'version': '1.0.2',
-      'providers': ['opencode-zen-free'],
-      'models': ['opencode-zen-free/qwen-coder'],
+      'version': '2.1.0',
+      'providers': ['workbuddy', 'workbuddy-ai'],
+      'models': ['glm-4.7', 'deepseek-v3', 'claude-sonnet-4'],
+      'providerDetails': [
+        {
+          'id': 'workbuddy',
+          'name': 'WorkBuddy CN',
+          'protocol': 'openai',
+          'authenticated': true,
+          'accountCount': 1,
+          'supportsUsage': true,
+          'supportsCheckin': false,
+          'supportsModels': true,
+          'models': [
+            {
+              'id': 'glm-4.7',
+              'name': 'GLM-4.7',
+              'context': 200000,
+              'free': true,
+              'reasoning': true,
+              'toolCall': true,
+            },
+            {
+              'id': 'deepseek-v3',
+              'name': 'DeepSeek V3',
+              'context': 128000,
+              'free': false,
+              'reasoning': false,
+              'toolCall': true,
+            },
+          ],
+          'selectedModels': <String>[],
+          'methods': [
+            {
+              'index': 0,
+              'type': 'oauth',
+              'label': 'Read Local App Session (Desktop Only)',
+            },
+            {
+              'index': 1,
+              'type': 'oauth',
+              'label': 'Tencent OAuth Browser Login',
+            },
+          ],
+          'accounts': [
+            {
+              'id': 'wb-cn-1',
+              'providerId': 'workbuddy',
+              'label': 'WeChat Dev',
+              'status': 'active',
+              'enabled': true,
+              'quotas': [
+                {'label': 'Monthly', 'used': 15, 'limit': 500},
+              ],
+            },
+          ],
+        },
+        {
+          'id': 'workbuddy-ai',
+          'name': 'WorkBuddy Global',
+          'protocol': 'openai',
+          'authenticated': false,
+          'accountCount': 0,
+          'supportsUsage': true,
+          'supportsCheckin': false,
+          'supportsModels': true,
+          'models': [
+            {
+              'id': 'claude-sonnet-4',
+              'name': 'Claude Sonnet 4',
+              'context': 200000,
+              'free': false,
+              'reasoning': true,
+              'toolCall': true,
+            },
+          ],
+          'selectedModels': <String>[],
+          'methods': [
+            {
+              'index': 0,
+              'type': 'oauth',
+              'label': 'WorkBuddy.ai OAuth',
+            },
+          ],
+          'accounts': <Map<String, dynamic>>[],
+        },
+      ],
       'accounts': [
         {
-          'id': 'acc-pub',
-          'providerId': 'opencode-zen-free',
-          'label': 'Public Credential',
+          'id': 'wb-cn-1',
+          'providerId': 'workbuddy',
+          'label': 'WeChat Dev',
           'status': 'active',
           'enabled': true,
           'quotas': [
-            {'label': '5h', 'used': 12, 'limit': 100},
+            {'label': 'Monthly', 'used': 15, 'limit': 500},
           ],
         },
       ],
@@ -195,13 +285,22 @@ class MockAdminBackend {
 
   final List<Map<String, dynamic>> marketPlugins = [
     {
-      'package': '@magpie-community/opencode-zen-free-auth',
-      'name': 'OpenCode Zen Free',
+      'package': '@magpie-community/opencode-workbuddy-auth',
+      'name': 'WorkBuddy Auth',
       'category': 'auth',
-      'summaryZh': '使用 public 凭证接入 OpenCode Zen 免费模型。',
-      'summaryEn': 'Access OpenCode Zen free models with public credential.',
-      'providers': ['opencode-zen-free'],
+      'summaryZh': '支持 WorkBuddy 国内版与国际版 OAuth 及模型同步。',
+      'summaryEn': 'WorkBuddy China and Global editions with OAuth and model sync.',
+      'providers': ['workbuddy', 'workbuddy-ai'],
       'installed': true,
+    },
+    {
+      'package': 'opencode-workbuddy-auth',
+      'name': 'WorkBuddy Auth Duplicate',
+      'category': 'auth',
+      'summaryZh': '重复包条目应被规范化合并。',
+      'summaryEn': 'Duplicate bare package entry should be deduplicated.',
+      'providers': ['workbuddy', 'workbuddy-ai'],
+      'installed': false,
     },
     {
       'package': '@magpie-community/opencode-kimi-auth',
@@ -210,15 +309,6 @@ class MockAdminBackend {
       'summaryZh': '接入 Kimi 订阅账号模型与额度同步。',
       'summaryEn': 'Connect Kimi subscription account and quota sync.',
       'providers': ['kimi'],
-      'installed': false,
-    },
-    {
-      'package': '@magpie-community/middleware-word-guard',
-      'name': 'Word Guard',
-      'category': 'middleware',
-      'summaryZh': '出站与响应敏感词过滤中间件。',
-      'summaryEn': 'Sensitive-word filter middleware for requests and replies.',
-      'providers': <String>[],
       'installed': false,
     },
   ];
@@ -256,7 +346,6 @@ class MockAdminBackend {
       'outputTokens': 340,
       'estimatedUsd': 0.002,
       'failoverAttempts': 0,
-      'redactionCount': 1,
       'error': '',
     },
   ];
@@ -283,7 +372,8 @@ class MockAdminBackend {
       final Map<String, dynamic> reqBody =
           bodyStr.isNotEmpty ? (jsonDecode(bodyStr) as Map<String, dynamic>) : {};
 
-      final responseJson = _handleAdmin(request.method, path, request.url.queryParameters, reqBody);
+      final responseJson =
+          _handleAdmin(request.method, path, request.url.queryParameters, reqBody);
       return http.StreamedResponse(
         Stream.value(utf8.encode(jsonEncode(responseJson))),
         200,
@@ -295,14 +385,12 @@ class MockAdminBackend {
   Map<String, dynamic> _settingsMap() => {
         'port': port,
         'lanEnabled': lanEnabled,
+        'requireAccessKey': requireAccessKey,
         'allowLocalKeyless': allowLocalKeyless,
         'allowIps': allowIps,
         'corsOrigins': corsOrigins,
-        'redactEnabled': redactEnabled,
-        'redactRestore': redactRestore,
-        'redactRules': redactRules,
-        'redactAllow': redactAllow,
         'chinaMirror': chinaMirror,
+        'pluginSelectedModels': pluginSelectedModels,
       };
 
   Map<String, dynamic> _statusMap() => {
@@ -310,11 +398,12 @@ class MockAdminBackend {
         'listenAddr': lanEnabled ? '0.0.0.0:$port' : '127.0.0.1:$port',
         'port': port,
         'lanEnabled': lanEnabled,
+        'requireAccessKey': requireAccessKey,
         'allowLocalKeyless': allowLocalKeyless,
         'lanUrls': lanEnabled ? ['http://192.168.1.42:$port'] : <String>[],
         'loopbackUrl': 'http://127.0.0.1:$port',
         'uptimeSec': 125,
-        'modelCount': 2,
+        'modelCount': 4,
         'activeProviderCount': providers.where((p) => p['enabled'] == true).length,
         'pluginRuntimeMode': 'bun',
       };
@@ -334,13 +423,6 @@ class MockAdminBackend {
         'plugins': plugins,
         'groups': groups,
         'aliases': aliases,
-        'redactSummary': {
-          'enabled': redactEnabled,
-          'restore': redactRestore,
-          'totalHits': 3,
-          'builtinRules': 7,
-          'customRules': redactRules.length,
-        },
         'usageSummary': {
           'range': 'today',
           'requests': 18,
@@ -358,14 +440,11 @@ class MockAdminBackend {
     if (path == '/admin/v1/settings') {
       if (body.containsKey('port')) port = (body['port'] as num).toInt();
       if (body.containsKey('lanEnabled')) lanEnabled = body['lanEnabled'] == true;
+      if (body.containsKey('requireAccessKey')) {
+        requireAccessKey = body['requireAccessKey'] == true;
+      }
       if (body.containsKey('allowLocalKeyless')) {
         allowLocalKeyless = body['allowLocalKeyless'] == true;
-      }
-      if (body.containsKey('redactEnabled')) {
-        redactEnabled = body['redactEnabled'] == true;
-      }
-      if (body.containsKey('redactRestore')) {
-        redactRestore = body['redactRestore'] == true;
       }
       if (body.containsKey('chinaMirror')) {
         chinaMirror = body['chinaMirror'] == true;
@@ -375,12 +454,6 @@ class MockAdminBackend {
       }
       if (body.containsKey('corsOrigins')) {
         corsOrigins = (body['corsOrigins'] as List).cast<String>();
-      }
-      if (body.containsKey('redactRules')) {
-        redactRules = (body['redactRules'] as List).cast<Map<String, dynamic>>();
-      }
-      if (body.containsKey('redactAllow')) {
-        redactAllow = (body['redactAllow'] as List).cast<String>();
       }
       return {'settings': _settingsMap(), 'status': _statusMap()};
     }
@@ -457,35 +530,75 @@ class MockAdminBackend {
       return {'ok': true};
     }
 
+    if (path == '/admin/v1/plugins/models') {
+      lastPluginModelsBody = body;
+      final providerId = body['providerId'] as String? ?? '';
+      final selected =
+          (body['selectedModels'] as List?)?.cast<String>() ?? <String>[];
+      pluginSelectedModels[providerId] = selected;
+      for (final pl in plugins) {
+        final details = pl['providerDetails'] as List?;
+        if (details == null) continue;
+        for (final d in details) {
+          if (d is Map && d['id'] == providerId) {
+            d['selectedModels'] = selected;
+          }
+        }
+      }
+      return {
+        'ok': true,
+        'providerId': providerId,
+        'selectedModels': selected,
+      };
+    }
+
+    if (path == '/admin/v1/plugins/refresh') {
+      return {'plugins': plugins};
+    }
+
     if (path == '/admin/v1/plugins/signin/start') {
+      lastSignInStartBody = body;
+      _openAutoPolls = 0;
+      if (simulateOpenAutoSignIn) {
+        return {
+          'sessionId': 'sess-auto',
+          'providerId': body['providerId'] ?? 'workbuddy',
+          'phase': 'open_auto',
+          'url': 'https://copilot.tencent.com/oauth',
+          'instructions': 'Complete sign-in in browser.',
+        };
+      }
       return {
         'sessionId': 'sess-1',
+        'providerId': body['providerId'] ?? 'workbuddy',
         'phase': 'done',
         'account': {
-          'id': 'acc-pub',
-          'providerId': 'opencode-zen-free',
-          'label': 'Public Credential',
+          'id': 'wb-new-1',
+          'providerId': body['providerId'] ?? 'workbuddy',
+          'label': 'Signed Account',
           'status': 'active',
         },
       };
     }
 
-    if (path == '/admin/v1/redact/preview') {
+    if (path.startsWith('/admin/v1/plugins/signin/') && method == 'GET') {
+      _openAutoPolls += 1;
+      if (_openAutoPolls >= 1) {
+        return {
+          'sessionId': 'sess-auto',
+          'phase': 'done',
+          'account': {
+            'id': 'wb-auto-1',
+            'providerId': lastSignInStartBody?['providerId'] ?? 'workbuddy',
+            'label': 'Auto OAuth Account',
+            'status': 'active',
+          },
+        };
+      }
       return {
-        'maskedText':
-            'Authorization: Bearer [REDACTED_KEY_1], contact [REDACTED_EMAIL_1]',
-        'hits': [
-          {
-            'ruleName': 'API Key',
-            'placeholder': '[REDACTED_KEY_1]',
-            'count': 1,
-          },
-          {
-            'ruleName': 'Email',
-            'placeholder': '[REDACTED_EMAIL_1]',
-            'count': 1,
-          },
-        ],
+        'sessionId': 'sess-auto',
+        'phase': 'open_auto',
+        'url': 'https://copilot.tencent.com/oauth',
       };
     }
 

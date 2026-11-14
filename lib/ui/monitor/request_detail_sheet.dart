@@ -78,12 +78,6 @@ class RequestDetailSheet extends StatelessWidget {
                   value: '${entry.failoverAttempts}',
                   monoValue: true,
                 ),
-                const FalconDivider(indent: 0),
-                FalconRow(
-                  title: l10n.monitorDetailRedactions,
-                  value: '${entry.redactionCount}',
-                  monoValue: true,
-                ),
               ],
             ),
           ),

@@ -106,6 +106,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get gatewayTitle => 'Gateway';
 
   @override
+  String get gatewayHeroSubtitleRunning =>
+      'Local routing & subscription proxy active';
+
+  @override
+  String get gatewayHeroSubtitleStopped =>
+      'Start gateway to accept local API requests';
+
+  @override
+  String get gatewayActionStart => 'Start Gateway';
+
+  @override
+  String get gatewayActionStop => 'Stop Gateway';
+
+  @override
   String get gatewayServiceSection => 'Service Status';
 
   @override
@@ -179,7 +193,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get gatewayLanAccessHint =>
-      'LAN clients always require a valid gateway access key';
+      'Expose gateway port to devices on the same LAN';
+
+  @override
+  String get gatewaySecuritySection => 'Access Control';
+
+  @override
+  String get gatewayRequireAccessKey => 'Access Key Protection';
+
+  @override
+  String get gatewayRequireAccessKeyHint =>
+      'Off for local or trusted LAN use; enable to require sk-flc- keys';
+
+  @override
+  String get gatewayLanRequireKey => 'Require access key on LAN';
+
+  @override
+  String get gatewayLanRequireKeyHint =>
+      'Enforce sk-flc- key validation for remote LAN clients';
 
   @override
   String get gatewayLanNoIp => 'No active LAN IPv4 address detected';
@@ -204,7 +235,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get gatewayClientAuthNote =>
-      'For LAN clients, provide an access key in Authorization: Bearer or x-api-key.';
+      'When access key protection is enabled, send a key via Authorization: Bearer or x-api-key.';
+
+  @override
+  String get gatewayClientKeylessNote =>
+      'Access key protection is off. Clients can call the endpoints above directly.';
 
   @override
   String get gatewayKeysSection => 'Gateway Access Keys';
@@ -471,6 +506,90 @@ class AppLocalizationsEn extends AppLocalizations {
   String get pluginsSignInFailed => 'Sign-in incomplete';
 
   @override
+  String get pluginsSelectModels => 'Models';
+
+  @override
+  String pluginsSelectedModelsSummary(int count, int total) {
+    return '$count / $total selected';
+  }
+
+  @override
+  String pluginsAutoAllModels(int total) {
+    return 'All $total active (Auto)';
+  }
+
+  @override
+  String get pluginsTestInPlayground => 'Test';
+
+  @override
+  String get pluginsRefreshPlugin => 'Refresh';
+
+  @override
+  String get pluginsAddAccount => 'Add Account';
+
+  @override
+  String get pluginsAuthenticated => 'Signed in';
+
+  @override
+  String get pluginsNotAuthenticated => 'Sign in required';
+
+  @override
+  String get pluginsModelsTitle => 'Select Models';
+
+  @override
+  String get pluginsModelsSearchHint => 'Search model ID or name';
+
+  @override
+  String get pluginsModelsFilterAll => 'All';
+
+  @override
+  String get pluginsModelsFilterSelected => 'Selected';
+
+  @override
+  String get pluginsModelsFilterFree => 'Free';
+
+  @override
+  String get pluginsModelsSelectAll => 'All Models';
+
+  @override
+  String get pluginsModelsClearAuto => 'Clear (Auto)';
+
+  @override
+  String get pluginsModelsAutoBanner =>
+      'When none are selected, all models from this provider remain enabled.';
+
+  @override
+  String get pluginsModelsCapReasoning => 'Reasoning';
+
+  @override
+  String get pluginsModelsCapTools => 'Tool Call';
+
+  @override
+  String get pluginsModelsCapFree => 'Free';
+
+  @override
+  String get pluginsModelsEmpty =>
+      'No models loaded yet. Sign in or tap Refresh.';
+
+  @override
+  String get pluginsEditionLabel => 'Service Edition';
+
+  @override
+  String get pluginsEditionWorkbuddyCn =>
+      'WorkBuddy China (copilot.tencent.com)';
+
+  @override
+  String get pluginsEditionWorkbuddyIntl =>
+      'WorkBuddy Global (www.workbuddy.ai)';
+
+  @override
+  String get pluginsAuthMethodLabel => 'Sign-In Method';
+
+  @override
+  String get pluginsAuthOpenAutoHint =>
+      'Authorization page opened. Complete sign-in in browser to sync automatically.';
+
+  @override
   String get routingTitle => 'Routing';
 
   @override
@@ -478,9 +597,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get routingSegmentAliases => 'Aliases';
-
-  @override
-  String get routingSegmentRedaction => 'Redaction';
 
   @override
   String get routingGroupsEmpty => 'No routing groups configured';
@@ -554,72 +670,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get routingAliasTargetHint => 'e.g. deepseek/deepseek-chat';
 
   @override
-  String get routingRedactEnable => 'Enable Prompt Redaction';
-
-  @override
-  String get routingRedactEnableHint =>
-      'Mask API keys, emails, phone numbers, and IPs before sending upstream';
-
-  @override
-  String get routingRedactRestore => 'Restore in Responses';
-
-  @override
-  String get routingRedactRestoreHint =>
-      'Restore masked placeholders across JSON and SSE response chunks';
-
-  @override
-  String get routingRedactHits => 'Total Hits';
-
-  @override
-  String get routingRedactBuiltinCount => 'Built-in Rules';
-
-  @override
-  String get routingRedactCustomRules => 'Custom Rules';
-
-  @override
-  String get routingRedactAllowlist => 'Allowlist';
-
-  @override
-  String get routingRedactAllowlistHint =>
-      'Comma-separated literals exempt from redaction';
-
-  @override
-  String get routingRedactRuleAdd => 'Add Custom Rule';
-
-  @override
-  String get routingRedactRuleName => 'Rule Name';
-
-  @override
-  String get routingRedactRulePattern => 'Regex Pattern';
-
-  @override
-  String get routingRedactRuleReplacement => 'Replacement Token';
-
-  @override
-  String get routingRedactPreview => 'Redaction Preview';
-
-  @override
-  String get routingRedactPreviewTitle => 'Interactive Redaction Preview';
-
-  @override
-  String get routingRedactPreviewInput => 'Sample Text';
-
-  @override
-  String get routingRedactPreviewInputHint =>
-      'Enter sample prompt text with keys, emails, phones, or custom patterns';
-
-  @override
-  String get routingRedactPreviewRun => 'Run Preview';
-
-  @override
-  String get routingRedactPreviewOutput => 'Masked Output';
-
-  @override
-  String routingRedactPreviewHits(int count) {
-    return 'Matched Rules ($count)';
-  }
-
-  @override
   String get monitorTitle => 'Monitor';
 
   @override
@@ -691,9 +741,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get monitorDetailFailovers => 'Failover Attempts';
 
   @override
-  String get monitorDetailRedactions => 'Redactions Applied';
-
-  @override
   String get monitorDetailError => 'Error';
 
   @override
@@ -707,6 +754,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playgroundKeyNone => 'Local Keyless';
+
+  @override
+  String get playgroundKeyNotRequired => 'Key protection off (open access)';
 
   @override
   String get playgroundKeyCustom => 'Enter Full Key';
@@ -728,7 +778,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playgroundSending => 'Streaming...';
 
   @override
+  String get playgroundStop => 'Stop';
+
+  @override
   String get playgroundOutputLabel => 'Streaming Response';
+
+  @override
+  String playgroundStreamRate(String rate, String sec) {
+    return '$rate tok/s · $sec s';
+  }
 
   @override
   String playgroundMetrics(int ttft, int total, int tokens) {

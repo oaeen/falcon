@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// Semantic and surface color tokens for Falcon.
+/// Material 3 Expressive semantic and surface color tokens for Falcon.
 ///
-/// Restrained engineering palette with 0.5px borders, zero drop shadows,
-/// single cobalt accent, and slate dark surfaces (never pure black).
+/// Tactile depth via clean tonal surface steps and crisp 1dp structural
+/// outlines, deep cobalt primary + warm falcon amber accent, never pure black.
 @immutable
 class FalconColors extends ThemeExtension<FalconColors> {
   const FalconColors({
@@ -17,6 +17,8 @@ class FalconColors extends ThemeExtension<FalconColors> {
     required this.textMuted,
     required this.accent,
     required this.accentSoft,
+    required this.warm,
+    required this.warmSoft,
     required this.success,
     required this.successSoft,
     required this.warning,
@@ -34,6 +36,8 @@ class FalconColors extends ThemeExtension<FalconColors> {
   final Color textMuted;
   final Color accent;
   final Color accentSoft;
+  final Color warm;
+  final Color warmSoft;
   final Color success;
   final Color successSoft;
   final Color warning;
@@ -42,39 +46,43 @@ class FalconColors extends ThemeExtension<FalconColors> {
   final Color dangerSoft;
 
   static const light = FalconColors(
-    scaffold: Color(0xFFF6F7F9),
+    scaffold: Color(0xFFFFFFFF),
     card: Color(0xFFFFFFFF),
-    cardSubtle: Color(0xFFF1F3F6),
-    border: Color(0xFFE2E5EC),
-    textPrimary: Color(0xFF151821),
-    textSecondary: Color(0xFF626B7C),
-    textMuted: Color(0xFF8A93A4),
-    accent: Color(0xFF2563EB),
-    accentSoft: Color(0xFFEFF6FF),
-    success: Color(0xFF16A34A),
-    successSoft: Color(0xFFECFDF3),
+    cardSubtle: Color(0xFFF5F6F8),
+    border: Color(0xFFE5E7EB),
+    textPrimary: Color(0xFF131824),
+    textSecondary: Color(0xFF525D73),
+    textMuted: Color(0xFF7D889E),
+    accent: Color(0xFF2457C5),
+    accentSoft: Color(0xFFD6E2FA),
+    warm: Color(0xFFE28A1A),
+    warmSoft: Color(0xFFFFF3DC),
+    success: Color(0xFF15803D),
+    successSoft: Color(0xFFDCFCE7),
     warning: Color(0xFFD97706),
-    warningSoft: Color(0xFFFFFBEB),
+    warningSoft: Color(0xFFFEF3C7),
     danger: Color(0xFFDC2626),
-    dangerSoft: Color(0xFFFEF2F2),
+    dangerSoft: Color(0xFFFEE2E2),
   );
 
   static const dark = FalconColors(
-    scaffold: Color(0xFF14171F),
-    card: Color(0xFF1C202B),
-    cardSubtle: Color(0xFF222735),
-    border: Color(0xFF282E3D),
-    textPrimary: Color(0xFFE6E9F0),
-    textSecondary: Color(0xFF949DB0),
-    textMuted: Color(0xFF6B7487),
-    accent: Color(0xFF60A5FA),
-    accentSoft: Color(0xFF172542),
-    success: Color(0xFF16A34A),
-    successSoft: Color(0xFF132A1E),
-    warning: Color(0xFFD97706),
-    warningSoft: Color(0xFF2E2212),
-    danger: Color(0xFFDC2626),
-    dangerSoft: Color(0xFF33181B),
+    scaffold: Color(0xFF0E131D),
+    card: Color(0xFF161D2B),
+    cardSubtle: Color(0xFF1E2738),
+    border: Color(0xFF283247),
+    textPrimary: Color(0xFFEAF0FA),
+    textSecondary: Color(0xFF9BA6BD),
+    textMuted: Color(0xFF6E7B94),
+    accent: Color(0xFF9BBCFF),
+    accentSoft: Color(0xFF1B2D52),
+    warm: Color(0xFFFFBA63),
+    warmSoft: Color(0xFF352612),
+    success: Color(0xFF4ADE80),
+    successSoft: Color(0xFF132D20),
+    warning: Color(0xFFFBBF24),
+    warningSoft: Color(0xFF2F2310),
+    danger: Color(0xFFF87171),
+    dangerSoft: Color(0xFF35181C),
   );
 
   static FalconColors of(BuildContext context) =>
@@ -92,6 +100,8 @@ class FalconColors extends ThemeExtension<FalconColors> {
     Color? textMuted,
     Color? accent,
     Color? accentSoft,
+    Color? warm,
+    Color? warmSoft,
     Color? success,
     Color? successSoft,
     Color? warning,
@@ -109,6 +119,8 @@ class FalconColors extends ThemeExtension<FalconColors> {
       textMuted: textMuted ?? this.textMuted,
       accent: accent ?? this.accent,
       accentSoft: accentSoft ?? this.accentSoft,
+      warm: warm ?? this.warm,
+      warmSoft: warmSoft ?? this.warmSoft,
       success: success ?? this.success,
       successSoft: successSoft ?? this.successSoft,
       warning: warning ?? this.warning,
@@ -131,6 +143,8 @@ class FalconColors extends ThemeExtension<FalconColors> {
       textMuted: Color.lerp(textMuted, other.textMuted, t)!,
       accent: Color.lerp(accent, other.accent, t)!,
       accentSoft: Color.lerp(accentSoft, other.accentSoft, t)!,
+      warm: Color.lerp(warm, other.warm, t)!,
+      warmSoft: Color.lerp(warmSoft, other.warmSoft, t)!,
       success: Color.lerp(success, other.success, t)!,
       successSoft: Color.lerp(successSoft, other.successSoft, t)!,
       warning: Color.lerp(warning, other.warning, t)!,
@@ -142,13 +156,21 @@ class FalconColors extends ThemeExtension<FalconColors> {
 }
 
 abstract final class FalconTheme {
-  static const double cardRadius = 12.0;
-  static const double borderWidth = 0.5;
+  static const double cardRadius = 24.0;
+  static const double heroRadius = 28.0;
+  static const double sheetRadius = 28.0;
+  static const double inputRadius = 16.0;
+  static const double pillRadius = 999.0;
+  static const double borderWidth = 1.0;
 
   static TextStyle tabular(TextStyle? base) => (base ?? const TextStyle())
       .copyWith(fontFeatures: const [FontFeature.tabularFigures()]);
 
-  static TextStyle mono(BuildContext context, {double fontSize = 13, Color? color}) {
+  static TextStyle mono(
+    BuildContext context, {
+    double fontSize = 13,
+    Color? color,
+  }) {
     final c = FalconColors.of(context);
     return TextStyle(
       fontFamily: 'monospace',
@@ -165,22 +187,23 @@ abstract final class FalconTheme {
 
   static ThemeData _build(Brightness brightness, FalconColors c) {
     final isDark = brightness == Brightness.dark;
+    final onPrimary = isDark ? const Color(0xFF0A1B3D) : Colors.white;
     final scheme = ColorScheme(
       brightness: brightness,
       primary: c.accent,
-      onPrimary: isDark ? const Color(0xFF0A1424) : Colors.white,
+      onPrimary: onPrimary,
       primaryContainer: c.accentSoft,
-      onPrimaryContainer: c.accent,
+      onPrimaryContainer: isDark ? const Color(0xFFD6E2FA) : c.accent,
       secondary: c.textSecondary,
-      onSecondary: Colors.white,
+      onSecondary: isDark ? c.scaffold : Colors.white,
       secondaryContainer: c.cardSubtle,
       onSecondaryContainer: c.textPrimary,
-      tertiary: c.warning,
-      onTertiary: Colors.white,
-      tertiaryContainer: c.warningSoft,
-      onTertiaryContainer: c.warning,
+      tertiary: c.warm,
+      onTertiary: isDark ? const Color(0xFF281800) : Colors.white,
+      tertiaryContainer: c.warmSoft,
+      onTertiaryContainer: c.warm,
       error: c.danger,
-      onError: Colors.white,
+      onError: isDark ? const Color(0xFF2F0808) : Colors.white,
       errorContainer: c.dangerSoft,
       onErrorContainer: c.danger,
       surface: c.card,
@@ -200,6 +223,27 @@ abstract final class FalconTheme {
           bodyColor: c.textPrimary,
           displayColor: c.textPrimary,
         );
+    final expressiveText = baseText.copyWith(
+      headlineSmall: baseText.headlineSmall?.copyWith(
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.3,
+        color: c.textPrimary,
+      ),
+      titleLarge: baseText.titleLarge?.copyWith(
+        fontSize: 20,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.2,
+        color: c.textPrimary,
+      ),
+      titleMedium: baseText.titleMedium?.copyWith(
+        fontWeight: FontWeight.w600,
+        color: c.textPrimary,
+      ),
+      bodyMedium: baseText.bodyMedium?.copyWith(
+        height: 1.4,
+        color: c.textPrimary,
+      ),
+    );
 
     return ThemeData(
       useMaterial3: true,
@@ -207,7 +251,7 @@ abstract final class FalconTheme {
       colorScheme: scheme,
       scaffoldBackgroundColor: c.scaffold,
       canvasColor: c.scaffold,
-      textTheme: baseText,
+      textTheme: expressiveText,
       extensions: [c],
       dividerColor: c.border,
       dividerTheme: DividerThemeData(
@@ -223,11 +267,7 @@ abstract final class FalconTheme {
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         centerTitle: false,
-        titleTextStyle: baseText.titleLarge?.copyWith(
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
-          color: c.textPrimary,
-        ),
+        titleTextStyle: expressiveText.titleLarge,
         systemOverlayStyle: SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
           statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
@@ -251,43 +291,72 @@ abstract final class FalconTheme {
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: c.card,
         elevation: 0,
-        height: 64,
+        height: 68,
         surfaceTintColor: Colors.transparent,
         indicatorColor: c.accentSoft,
+        indicatorShape: const StadiumBorder(),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
           return IconThemeData(
             size: 22,
-            color: selected ? c.accent : c.textSecondary,
+            color: selected
+                ? (isDark ? c.textPrimary : c.accent)
+                : c.textSecondary,
           );
         }),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
           return TextStyle(
-            fontSize: 11,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-            color: selected ? c.accent : c.textSecondary,
+            fontSize: 11.5,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            color: selected
+                ? (isDark ? c.textPrimary : c.accent)
+                : c.textSecondary,
           );
         }),
+      ),
+      navigationRailTheme: NavigationRailThemeData(
+        backgroundColor: c.card,
+        elevation: 0,
+        indicatorColor: c.accentSoft,
+        indicatorShape: const StadiumBorder(),
+        selectedIconTheme: IconThemeData(
+          size: 22,
+          color: isDark ? c.textPrimary : c.accent,
+        ),
+        unselectedIconTheme: IconThemeData(size: 22, color: c.textSecondary),
+        selectedLabelTextStyle: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: isDark ? c.textPrimary : c.accent,
+        ),
+        unselectedLabelTextStyle: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          color: c.textSecondary,
+        ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: c.cardSubtle,
         isDense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 13,
+        ),
         hintStyle: TextStyle(color: c.textMuted, fontSize: 14),
         labelStyle: TextStyle(color: c.textSecondary, fontSize: 14),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(inputRadius),
           borderSide: BorderSide(color: c.border, width: borderWidth),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(inputRadius),
           borderSide: BorderSide(color: c.border, width: borderWidth),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: c.accent, width: 1.2),
+          borderRadius: BorderRadius.circular(inputRadius),
+          borderSide: BorderSide(color: c.accent, width: 1.5),
         ),
       ),
       segmentedButtonTheme: SegmentedButtonThemeData(
@@ -299,22 +368,32 @@ abstract final class FalconTheme {
           }),
           foregroundColor: WidgetStateProperty.resolveWith((states) {
             return states.contains(WidgetState.selected)
-                ? c.accent
+                ? (isDark ? c.textPrimary : c.accent)
                 : c.textSecondary;
           }),
           side: WidgetStatePropertyAll(
             BorderSide(color: c.border, width: borderWidth),
           ),
           shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(pillRadius),
+            ),
           ),
-          visualDensity: VisualDensity.compact,
+          padding: const WidgetStatePropertyAll(
+            EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          ),
         ),
       ),
       switchTheme: SwitchThemeData(
+        thumbIcon: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return Icon(Icons.check_rounded, size: 14, color: c.accent);
+          }
+          return Icon(Icons.close_rounded, size: 12, color: c.card);
+        }),
         thumbColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return isDark ? const Color(0xFF0A1424) : Colors.white;
+            return isDark ? c.scaffold : Colors.white;
           }
           return c.textMuted;
         }),
@@ -332,25 +411,42 @@ abstract final class FalconTheme {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: c.accent,
-          foregroundColor: isDark ? const Color(0xFF0A1424) : Colors.white,
+          foregroundColor: onPrimary,
           elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          shape: const StadiumBorder(),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          textStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: c.textPrimary,
           side: BorderSide(color: c.border, width: borderWidth),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          shape: const StadiumBorder(),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+          textStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 13.5,
+          ),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: c.accent,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          shape: const StadiumBorder(),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
         ),
+      ),
+      chipTheme: ChipThemeData(
+        shape: const StadiumBorder(),
+        side: BorderSide(color: c.border, width: borderWidth),
+        backgroundColor: c.card,
+        selectedColor: c.accentSoft,
+        labelStyle: TextStyle(fontSize: 12.5, color: c.textPrimary),
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: isDark ? c.cardSubtle : c.textPrimary,
@@ -359,7 +455,7 @@ abstract final class FalconTheme {
           fontSize: 13,
         ),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: c.card,
@@ -375,7 +471,7 @@ abstract final class FalconTheme {
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(sheetRadius)),
         ),
       ),
     );

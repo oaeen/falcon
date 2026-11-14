@@ -13,10 +13,8 @@ import '../widgets/sheet_frame.dart';
 import '../widgets/status_pill.dart';
 import 'alias_editor_sheet.dart';
 import 'group_editor_sheet.dart';
-import 'redact_preview_sheet.dart';
-import 'redact_rule_sheet.dart';
 
-enum _RoutingSegment { groups, aliases, redaction }
+enum _RoutingSegment { groups, aliases }
 
 class RoutingScreen extends ConsumerStatefulWidget {
   const RoutingScreen({super.key});
@@ -27,26 +25,6 @@ class RoutingScreen extends ConsumerStatefulWidget {
 
 class _RoutingScreenState extends ConsumerState<RoutingScreen> {
   _RoutingSegment _segment = _RoutingSegment.groups;
-  final _allowlistCtrl = TextEditingController();
-  bool _allowlistDirty = false;
-
-  @override
-  void dispose() {
-    _allowlistCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _saveAllowlist() async {
-    final items = _allowlistCtrl.text
-        .split(',')
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toList(growable: false);
-    await ref
-        .read(gatewayAdminStateProvider.notifier)
-        .updateSettings({'redactAllow': items});
-    if (mounted) setState(() => _allowlistDirty = false);
-  }
 
   Future<void> _deleteAlias(
     List<ModelAlias> all,
@@ -59,19 +37,6 @@ class _RoutingScreenState extends ConsumerState<RoutingScreen> {
     await ref.read(gatewayAdminStateProvider.notifier).reload();
   }
 
-  Future<void> _deleteRedactRule(
-    List<RedactRule> all,
-    RedactRule rule,
-  ) async {
-    final next = all
-        .where((r) => r.id != rule.id)
-        .map((r) => r.toJson())
-        .toList(growable: false);
-    await ref
-        .read(gatewayAdminStateProvider.notifier)
-        .updateSettings({'redactRules': next});
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -80,13 +45,6 @@ class _RoutingScreenState extends ConsumerState<RoutingScreen> {
         ref.watch(gatewayRuntimeProvider).value?.running ?? false;
     final snapshot =
         ref.watch(gatewayAdminStateProvider).value ?? const AdminStateSnapshot();
-
-    if (!_allowlistDirty) {
-      final serverAllow = snapshot.settings.redactAllow.join(', ');
-      if (_allowlistCtrl.text != serverAllow) {
-        _allowlistCtrl.text = serverAllow;
-      }
-    }
 
     return ResponsiveBody(
       child: RefreshIndicator(
@@ -107,10 +65,6 @@ class _RoutingScreenState extends ConsumerState<RoutingScreen> {
                 ButtonSegment(
                   value: _RoutingSegment.aliases,
                   label: Text(l10n.routingSegmentAliases),
-                ),
-                ButtonSegment(
-                  value: _RoutingSegment.redaction,
-                  label: Text(l10n.routingSegmentRedaction),
                 ),
               ],
               selected: {_segment},
@@ -137,7 +91,7 @@ class _RoutingScreenState extends ConsumerState<RoutingScreen> {
               const SizedBox(height: 12),
               if (snapshot.groups.isEmpty)
                 FalconCard(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(18),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -145,7 +99,7 @@ class _RoutingScreenState extends ConsumerState<RoutingScreen> {
                         l10n.routingGroupsEmpty,
                         style: TextStyle(
                           fontSize: 14,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w600,
                           color: c.textPrimary,
                         ),
                       ),
@@ -196,7 +150,7 @@ class _RoutingScreenState extends ConsumerState<RoutingScreen> {
                     ],
                   ),
                 ),
-            ] else if (_segment == _RoutingSegment.aliases) ...[
+            ] else ...[
               Align(
                 alignment: Alignment.centerRight,
                 child: FilledButton.icon(
@@ -217,7 +171,7 @@ class _RoutingScreenState extends ConsumerState<RoutingScreen> {
               const SizedBox(height: 12),
               if (snapshot.aliases.isEmpty)
                 FalconCard(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(18),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -225,7 +179,7 @@ class _RoutingScreenState extends ConsumerState<RoutingScreen> {
                         l10n.routingAliasesEmpty,
                         style: TextStyle(
                           fontSize: 14,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w600,
                           color: c.textPrimary,
                         ),
                       ),
@@ -273,154 +227,6 @@ class _RoutingScreenState extends ConsumerState<RoutingScreen> {
                     ],
                   ),
                 ),
-            ] else ...[
-              FalconCard(
-                child: Column(
-                  children: [
-                    FalconRow(
-                      icon: Icons.shield_outlined,
-                      title: l10n.routingRedactEnable,
-                      subtitle: l10n.routingRedactEnableHint,
-                      trailing: Switch(
-                        key: const ValueKey('redact-enabled-switch'),
-                        value: snapshot.settings.redactEnabled,
-                        onChanged: runtimeRunning
-                            ? (v) => ref
-                                .read(gatewayAdminStateProvider.notifier)
-                                .updateSettings({'redactEnabled': v})
-                            : null,
-                      ),
-                    ),
-                    const FalconDivider(),
-                    FalconRow(
-                      icon: Icons.restore_rounded,
-                      title: l10n.routingRedactRestore,
-                      subtitle: l10n.routingRedactRestoreHint,
-                      trailing: Switch(
-                        value: snapshot.settings.redactRestore,
-                        onChanged: runtimeRunning
-                            ? (v) => ref
-                                .read(gatewayAdminStateProvider.notifier)
-                                .updateSettings({'redactRestore': v})
-                            : null,
-                      ),
-                    ),
-                    const FalconDivider(),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: _RedactStat(
-                              label: l10n.routingRedactHits,
-                              value: '${snapshot.redactSummary.totalHits}',
-                            ),
-                          ),
-                          Expanded(
-                            child: _RedactStat(
-                              label: l10n.routingRedactBuiltinCount,
-                              value: '${snapshot.redactSummary.builtinRules}',
-                            ),
-                          ),
-                          Expanded(
-                            child: _RedactStat(
-                              label: l10n.routingRedactCustomRules,
-                              value: '${snapshot.settings.redactRules.length}',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                key: const ValueKey('open-redact-preview-btn'),
-                onPressed: runtimeRunning
-                    ? () => showFalconSheet<void>(
-                          context: context,
-                          builder: (_) => const RedactPreviewSheet(),
-                        )
-                    : null,
-                icon: const Icon(Icons.visibility_outlined, size: 18),
-                label: Text(l10n.routingRedactPreview),
-              ),
-              const SizedBox(height: 18),
-              SectionHeader(
-                title: l10n.routingRedactCustomRules,
-                trailing: TextButton.icon(
-                  onPressed: runtimeRunning
-                      ? () => showFalconSheet<bool>(
-                            context: context,
-                            builder: (_) => RedactRuleSheet(
-                              existingRules: snapshot.settings.redactRules,
-                            ),
-                          )
-                      : null,
-                  icon: const Icon(Icons.add_rounded, size: 17),
-                  label: Text(l10n.actionAdd),
-                ),
-              ),
-              if (snapshot.settings.redactRules.isNotEmpty)
-                FalconCard(
-                  child: Column(
-                    children: [
-                      for (var i = 0;
-                          i < snapshot.settings.redactRules.length;
-                          i++) ...[
-                        if (i > 0) const FalconDivider(),
-                        FalconRow(
-                          icon: Icons.rule_outlined,
-                          title: snapshot.settings.redactRules[i].name,
-                          subtitle:
-                              '${snapshot.settings.redactRules[i].pattern} → ${snapshot.settings.redactRules[i].replacement}',
-                          trailing: IconButton(
-                            icon: Icon(
-                              Icons.delete_outline_rounded,
-                              size: 18,
-                              color: c.textMuted,
-                            ),
-                            onPressed: () => _deleteRedactRule(
-                              snapshot.settings.redactRules,
-                              snapshot.settings.redactRules[i],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              const SizedBox(height: 16),
-              SectionHeader(title: l10n.routingRedactAllowlist),
-              FalconCard(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    TextField(
-                      controller: _allowlistCtrl,
-                      decoration: InputDecoration(
-                        hintText: l10n.routingRedactAllowlistHint,
-                      ),
-                      onChanged: (_) => setState(() => _allowlistDirty = true),
-                    ),
-                    if (_allowlistDirty) ...[
-                      const SizedBox(height: 10),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: FilledButton(
-                          onPressed: runtimeRunning ? _saveAllowlist : null,
-                          child: Text(l10n.actionSave),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
             ],
           ],
         ),
@@ -446,7 +252,7 @@ class _GroupRow extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
+        padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
         child: Row(
           children: [
             Expanded(
@@ -482,40 +288,6 @@ class _GroupRow extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _RedactStat extends StatelessWidget {
-  const _RedactStat({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = FalconColors.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(fontSize: 11.5, color: c.textSecondary),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: FalconTheme.tabular(
-            TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: c.textPrimary,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

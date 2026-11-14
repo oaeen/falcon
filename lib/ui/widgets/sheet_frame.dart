@@ -51,17 +51,17 @@ class FalconSheetFrame extends StatelessWidget {
           children: [
             Center(
               child: Container(
-                margin: const EdgeInsets.only(top: 10, bottom: 6),
-                width: 34,
+                margin: const EdgeInsets.only(top: 12, bottom: 6),
+                width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: c.border,
-                  borderRadius: BorderRadius.circular(2),
+                  color: c.textMuted.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(FalconTheme.pillRadius),
                 ),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 6, 10, 10),
+              padding: const EdgeInsets.fromLTRB(20, 6, 12, 12),
               child: Row(
                 children: [
                   Expanded(
@@ -72,13 +72,14 @@ class FalconSheetFrame extends StatelessWidget {
                         Text(
                           title,
                           style: TextStyle(
-                            fontSize: 16.5,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.2,
                             color: c.textPrimary,
                           ),
                         ),
                         if (subtitle != null && subtitle!.isNotEmpty) ...[
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 3),
                           Text(
                             subtitle!,
                             style: TextStyle(

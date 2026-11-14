@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../theme/falcon_theme.dart';
 
-/// Restrained grouped card with 12px radius, 0.5px border, and zero shadows.
+/// Material 3 Expressive grouped card with tonal depth, 24dp radius,
+/// crisp 1dp border, and zero heavy drop shadows.
 class FalconCard extends StatelessWidget {
   const FalconCard({
     super.key,
@@ -10,12 +11,14 @@ class FalconCard extends StatelessWidget {
     this.padding = EdgeInsets.zero,
     this.backgroundColor,
     this.borderColor,
+    this.radius,
   });
 
   final Widget child;
   final EdgeInsetsGeometry padding;
   final Color? backgroundColor;
   final Color? borderColor;
+  final double? radius;
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +26,7 @@ class FalconCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: backgroundColor ?? c.card,
-        borderRadius: BorderRadius.circular(FalconTheme.cardRadius),
+        borderRadius: BorderRadius.circular(radius ?? FalconTheme.cardRadius),
         border: Border.all(
           color: borderColor ?? c.border,
           width: FalconTheme.borderWidth,
@@ -37,7 +40,7 @@ class FalconCard extends StatelessWidget {
   }
 }
 
-/// Section header placed directly above a [FalconCard].
+/// Expressive section header placed above a [FalconCard].
 class SectionHeader extends StatelessWidget {
   const SectionHeader({
     super.key,
@@ -52,16 +55,16 @@ class SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = FalconColors.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+      padding: const EdgeInsets.fromLTRB(6, 0, 4, 10),
       child: Row(
         children: [
           Expanded(
             child: Text(
               title,
               style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.2,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.15,
                 color: c.textSecondary,
               ),
               maxLines: 1,

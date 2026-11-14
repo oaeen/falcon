@@ -6,7 +6,7 @@ import 'test_fakes.dart';
 
 void main() {
   testWidgets(
-    '4-tab navigation and Settings render cleanly on compact 360x780 viewport',
+    '4-tab NavigationBar and Settings render cleanly on compact 360x780 viewport',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(360, 780));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -23,18 +23,25 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Tab 1: Gateway
-      expect(find.text('服务状态'), findsOneWidget);
+      // Tab 1: Gateway Hero Mascot Card + Access Endpoints + bottom NavigationBar
+      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.byType(NavigationRail), findsNothing);
+      expect(
+        find.byKey(const ValueKey('gateway-service-toggle-btn')),
+        findsOneWidget,
+      );
+      expect(find.text('访问端点'), findsOneWidget);
 
-      // Tab 2: Providers
+      // Tab 2: Providers (API + Plugins)
       await tester.tap(find.text('渠道'));
       await tester.pumpAndSettle();
       expect(find.text('DeepSeek'), findsOneWidget);
 
-      // Tab 3: Routing
+      // Tab 3: Routing (2-segment Groups + Aliases, no Redaction)
       await tester.tap(find.text('路由'));
       await tester.pumpAndSettle();
       expect(find.text('default-chat'), findsOneWidget);
+      expect(find.text('请求脱敏'), findsNothing);
 
       // Tab 4: Monitor
       await tester.tap(find.text('观测'));
@@ -48,7 +55,8 @@ void main() {
     },
   );
 
-  testWidgets('Wide tablet/desktop 1024x768 layout renders cleanly', (tester) async {
+  testWidgets('Wide tablet/desktop 1024x768 layout uses NavigationRail cleanly',
+      (tester) async {
     await tester.binding.setSurfaceSize(const Size(1024, 768));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -64,6 +72,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.byType(NavigationRail), findsOneWidget);
+    expect(find.byType(NavigationBar), findsNothing);
     expect(find.text('访问端点'), findsOneWidget);
   });
 }

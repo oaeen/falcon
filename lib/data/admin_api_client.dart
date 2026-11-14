@@ -241,6 +241,8 @@ class AdminApiClient {
   Future<PluginSignInSession> startPluginSignIn({
     required String packageName,
     String? providerId,
+    int methodIndex = 0,
+    String? apiKey,
   }) async {
     final json = await _requestJson(
       'POST',
@@ -249,9 +251,40 @@ class AdminApiClient {
         'package': packageName,
         if (providerId != null && providerId.isNotEmpty)
           'providerId': providerId,
+        'methodIndex': methodIndex,
+        if (apiKey != null && apiKey.isNotEmpty) 'apiKey': apiKey,
       },
     );
     return PluginSignInSession.fromJson(json);
+  }
+
+  Future<List<String>> setPluginSelectedModels({
+    String? pluginId,
+    required String providerId,
+    required List<String> selectedModels,
+  }) async {
+    final json = await _requestJson(
+      'POST',
+      '/admin/v1/plugins/models',
+      body: {
+        if (pluginId != null && pluginId.isNotEmpty) 'pluginId': pluginId,
+        'providerId': providerId,
+        'selectedModels': selectedModels,
+      },
+    );
+    return (json['selectedModels'] as List?)
+            ?.map((e) => '$e')
+            .where((e) => e.isNotEmpty)
+            .toList(growable: false) ??
+        selectedModels;
+  }
+
+  Future<void> refreshPlugins({String? pluginId}) async {
+    await _requestJson(
+      'POST',
+      '/admin/v1/plugins/refresh',
+      body: pluginId == null || pluginId.isEmpty ? const {} : {'pluginId': pluginId},
+    );
   }
 
   Future<PluginSignInSession> pollPluginSignIn(String sessionId) async {
@@ -314,15 +347,6 @@ class AdminApiClient {
         'aliases': aliases.map((a) => a.toJson()).toList(growable: false),
       },
     );
-  }
-
-  Future<RedactPreviewResult> previewRedact(String text) async {
-    final json = await _requestJson(
-      'POST',
-      '/admin/v1/redact/preview',
-      body: {'text': text},
-    );
-    return RedactPreviewResult.fromJson(json);
   }
 
   Future<UsageSummary> getUsage(String range) async {

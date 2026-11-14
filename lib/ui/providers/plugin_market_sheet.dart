@@ -148,7 +148,44 @@ class _PluginMarketSheetState extends ConsumerState<PluginMarketSheet> {
               style: TextStyle(color: c.danger, fontSize: 13),
             ),
             data: (plugins) {
-              final filtered = plugins.where(_matches).toList(growable: false);
+              final installedCanonicals = (ref
+                          .watch(gatewayAdminStateProvider)
+                          .value
+                          ?.plugins ??
+                      const <InstalledPlugin>[])
+                  .map((p) => canonicalPluginPackage(p.package))
+                  .toSet();
+
+              // Canonicalize @magpie-community/* vs bare package names so
+              // duplicates never appear in the market list.
+              final byCanonical = <String, MarketPlugin>{};
+              for (final p in plugins) {
+                final key = canonicalPluginPackage(p.package);
+                final isInstalled =
+                    p.installed || installedCanonicals.contains(key);
+                final normalized = MarketPlugin(
+                  package: p.package,
+                  name: p.name,
+                  category: p.category,
+                  summaryZh: p.summaryZh,
+                  summaryEn: p.summaryEn,
+                  providers: p.providers,
+                  installed: isInstalled,
+                  version: p.version,
+                  community: p.community,
+                );
+                final existing = byCanonical[key];
+                if (existing == null ||
+                    (!existing.installed && normalized.installed) ||
+                    (normalized.package.startsWith('@') &&
+                        !existing.package.startsWith('@'))) {
+                  byCanonical[key] = normalized;
+                }
+              }
+
+              final filtered = byCanonical.values
+                  .where(_matches)
+                  .toList(growable: false);
               return FalconCard(
                 child: Column(
                   children: [

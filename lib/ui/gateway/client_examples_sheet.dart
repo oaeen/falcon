@@ -10,10 +10,12 @@ class ClientExamplesSheet extends StatefulWidget {
     super.key,
     required this.loopbackUrl,
     required this.lanUrls,
+    this.requireAccessKey = false,
   });
 
   final String loopbackUrl;
   final List<String> lanUrls;
+  final bool requireAccessKey;
 
   @override
   State<ClientExamplesSheet> createState() => _ClientExamplesSheetState();
@@ -44,21 +46,29 @@ class _ClientExamplesSheetState extends State<ClientExamplesSheet> {
     final l10n = context.l10n;
     final c = FalconColors.of(context);
     final endpoints = <String>[widget.loopbackUrl, ...widget.lanUrls];
+    final keyPlaceholder =
+        widget.requireAccessKey ? 'sk-flc-your-key' : 'no-key-required';
 
     final openAiSnippet = 'OPENAI_BASE_URL=$_selectedEndpoint/v1\n'
-        'OPENAI_API_KEY=sk-flc-your-key';
+        'OPENAI_API_KEY=$keyPlaceholder';
     final anthropicSnippet = 'ANTHROPIC_BASE_URL=$_selectedEndpoint\n'
-        'ANTHROPIC_API_KEY=sk-flc-your-key';
+        'ANTHROPIC_API_KEY=$keyPlaceholder';
     final geminiSnippet = 'GEMINI_API_BASE=$_selectedEndpoint/v1beta\n'
-        'GEMINI_API_KEY=sk-flc-your-key';
-    final curlSnippet = 'curl $_selectedEndpoint/v1/chat/completions \\\n'
-        '  -H "Authorization: Bearer sk-flc-your-key" \\\n'
-        '  -H "Content-Type: application/json" \\\n'
-        '  -d \'{"model":"gpt-4o","messages":[{"role":"user","content":"ping"}]}\'';
+        'GEMINI_API_KEY=$keyPlaceholder';
+    final curlSnippet = widget.requireAccessKey
+        ? 'curl $_selectedEndpoint/v1/chat/completions \\\n'
+            '  -H "Authorization: Bearer sk-flc-your-key" \\\n'
+            '  -H "Content-Type: application/json" \\\n'
+            '  -d \'{"model":"gpt-4o","messages":[{"role":"user","content":"ping"}]}\''
+        : 'curl $_selectedEndpoint/v1/chat/completions \\\n'
+            '  -H "Content-Type: application/json" \\\n'
+            '  -d \'{"model":"gpt-4o","messages":[{"role":"user","content":"ping"}]}\'';
 
     return FalconSheetFrame(
       title: l10n.gatewayClientExamplesTitle,
-      subtitle: l10n.gatewayClientAuthNote,
+      subtitle: widget.requireAccessKey
+          ? l10n.gatewayClientAuthNote
+          : l10n.gatewayClientKeylessNote,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

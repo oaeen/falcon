@@ -106,6 +106,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get gatewayTitle => '网关';
 
   @override
+  String get gatewayHeroSubtitleRunning => '本地模型路由与订阅代理已就绪';
+
+  @override
+  String get gatewayHeroSubtitleStopped => '点击启动以监听本地与订阅请求';
+
+  @override
+  String get gatewayActionStart => '启动网关';
+
+  @override
+  String get gatewayActionStop => '停止网关';
+
+  @override
   String get gatewayServiceSection => '服务状态';
 
   @override
@@ -175,7 +187,22 @@ class AppLocalizationsZh extends AppLocalizations {
   String get gatewayLanAccess => '局域网访问';
 
   @override
-  String get gatewayLanAccessHint => '开启后局域网设备必须携带访问密钥';
+  String get gatewayLanAccessHint => '开放同局域网设备访问当前端口';
+
+  @override
+  String get gatewaySecuritySection => '访问鉴权';
+
+  @override
+  String get gatewayRequireAccessKey => '访问密钥保护';
+
+  @override
+  String get gatewayRequireAccessKeyHint => '本机或受信任局域网默认关闭；开启后将校验 sk-flc- 密钥';
+
+  @override
+  String get gatewayLanRequireKey => '局域网请求校验密钥';
+
+  @override
+  String get gatewayLanRequireKeyHint => '对来自局域网 IP 的客户端强制要求 sk-flc- 访问密钥';
 
   @override
   String get gatewayLanNoIp => '当前未检测到局域网 IPv4 地址';
@@ -200,7 +227,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get gatewayClientAuthNote =>
-      '局域网调用请在 Authorization 请求头中填入访问密钥，或通过 x-api-key 传入。';
+      '已开启访问密钥保护时，请在 Authorization 请求头或 x-api-key 中传入密钥。';
+
+  @override
+  String get gatewayClientKeylessNote => '当前未开启访问密钥保护，客户端可直接访问上述地址。';
 
   @override
   String get gatewayKeysSection => '访问密钥';
@@ -454,6 +484,85 @@ class AppLocalizationsZh extends AppLocalizations {
   String get pluginsSignInFailed => '认证未完成';
 
   @override
+  String get pluginsSelectModels => '选择模型';
+
+  @override
+  String pluginsSelectedModelsSummary(int count, int total) {
+    return '已选 $count / $total 个模型';
+  }
+
+  @override
+  String pluginsAutoAllModels(int total) {
+    return '全部 $total 个可用（自动）';
+  }
+
+  @override
+  String get pluginsTestInPlayground => '在线测试';
+
+  @override
+  String get pluginsRefreshPlugin => '刷新状态';
+
+  @override
+  String get pluginsAddAccount => '添加账号';
+
+  @override
+  String get pluginsAuthenticated => '已认证';
+
+  @override
+  String get pluginsNotAuthenticated => '未登录';
+
+  @override
+  String get pluginsModelsTitle => '模型选择';
+
+  @override
+  String get pluginsModelsSearchHint => '搜索模型 ID 或名称';
+
+  @override
+  String get pluginsModelsFilterAll => '全部';
+
+  @override
+  String get pluginsModelsFilterSelected => '已选';
+
+  @override
+  String get pluginsModelsFilterFree => '免费';
+
+  @override
+  String get pluginsModelsSelectAll => '全选';
+
+  @override
+  String get pluginsModelsClearAuto => '清空（自动）';
+
+  @override
+  String get pluginsModelsAutoBanner => '未勾选特定模型时，网关将自动暴露当前服务商的全部可用模型。';
+
+  @override
+  String get pluginsModelsCapReasoning => '推理';
+
+  @override
+  String get pluginsModelsCapTools => '工具调用';
+
+  @override
+  String get pluginsModelsCapFree => '免费';
+
+  @override
+  String get pluginsModelsEmpty => '暂无可选模型，请先登录后刷新或手动刷新目录';
+
+  @override
+  String get pluginsEditionLabel => '服务版本 / 区域';
+
+  @override
+  String get pluginsEditionWorkbuddyCn => 'WorkBuddy 国内版 (copilot.tencent.com)';
+
+  @override
+  String get pluginsEditionWorkbuddyIntl => 'WorkBuddy 国际版 (www.workbuddy.ai)';
+
+  @override
+  String get pluginsAuthMethodLabel => '认证方式';
+
+  @override
+  String get pluginsAuthOpenAutoHint => '已在浏览器中打开授权页面，完成登录后将自动同步账号与模型。';
+
+  @override
   String get routingTitle => '路由';
 
   @override
@@ -461,9 +570,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get routingSegmentAliases => '模型映射';
-
-  @override
-  String get routingSegmentRedaction => '请求脱敏';
 
   @override
   String get routingGroupsEmpty => '尚未配置路由组';
@@ -532,68 +638,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get routingAliasTargetHint => '例如：deepseek/deepseek-chat';
-
-  @override
-  String get routingRedactEnable => '启用请求脱敏';
-
-  @override
-  String get routingRedactEnableHint => '出站前自动替换密钥、邮箱、手机号、IP 等敏感信息';
-
-  @override
-  String get routingRedactRestore => '流式响应自动还原';
-
-  @override
-  String get routingRedactRestoreHint => '收到上游响应时将占位符还原为原始值';
-
-  @override
-  String get routingRedactHits => '累计拦截次数';
-
-  @override
-  String get routingRedactBuiltinCount => '内置规则';
-
-  @override
-  String get routingRedactCustomRules => '自定义规则';
-
-  @override
-  String get routingRedactAllowlist => '放行白名单';
-
-  @override
-  String get routingRedactAllowlistHint => '逗号分隔，命中白名单的文本不脱敏';
-
-  @override
-  String get routingRedactRuleAdd => '添加脱敏规则';
-
-  @override
-  String get routingRedactRuleName => '规则名称';
-
-  @override
-  String get routingRedactRulePattern => '正则表达式';
-
-  @override
-  String get routingRedactRuleReplacement => '替换占位符';
-
-  @override
-  String get routingRedactPreview => '脱敏预览';
-
-  @override
-  String get routingRedactPreviewTitle => '交互式脱敏预览';
-
-  @override
-  String get routingRedactPreviewInput => '测试文本';
-
-  @override
-  String get routingRedactPreviewInputHint => '输入包含密钥、邮箱、手机号或自定义正则的文本进行模拟';
-
-  @override
-  String get routingRedactPreviewRun => '执行脱敏检测';
-
-  @override
-  String get routingRedactPreviewOutput => '脱敏输出';
-
-  @override
-  String routingRedactPreviewHits(int count) {
-    return '命中规则明细（$count）';
-  }
 
   @override
   String get monitorTitle => '观测';
@@ -667,9 +711,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get monitorDetailFailovers => '故障转移次数';
 
   @override
-  String get monitorDetailRedactions => '脱敏替换次数';
-
-  @override
   String get monitorDetailError => '错误信息';
 
   @override
@@ -683,6 +724,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get playgroundKeyNone => '本机免密';
+
+  @override
+  String get playgroundKeyNotRequired => '密钥保护已关闭（免鉴权）';
 
   @override
   String get playgroundKeyCustom => '手动输入密钥';
@@ -703,7 +747,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get playgroundSending => '生成中...';
 
   @override
+  String get playgroundStop => '停止';
+
+  @override
   String get playgroundOutputLabel => '流式响应';
+
+  @override
+  String playgroundStreamRate(String rate, String sec) {
+    return '$rate tok/s · $sec s';
+  }
 
   @override
   String playgroundMetrics(int ttft, int total, int tokens) {

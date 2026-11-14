@@ -290,6 +290,30 @@ abstract class AppLocalizations {
   /// **'网关'**
   String get gatewayTitle;
 
+  /// No description provided for @gatewayHeroSubtitleRunning.
+  ///
+  /// In zh, this message translates to:
+  /// **'本地模型路由与订阅代理已就绪'**
+  String get gatewayHeroSubtitleRunning;
+
+  /// No description provided for @gatewayHeroSubtitleStopped.
+  ///
+  /// In zh, this message translates to:
+  /// **'点击启动以监听本地与订阅请求'**
+  String get gatewayHeroSubtitleStopped;
+
+  /// No description provided for @gatewayActionStart.
+  ///
+  /// In zh, this message translates to:
+  /// **'启动网关'**
+  String get gatewayActionStart;
+
+  /// No description provided for @gatewayActionStop.
+  ///
+  /// In zh, this message translates to:
+  /// **'停止网关'**
+  String get gatewayActionStop;
+
   /// No description provided for @gatewayServiceSection.
   ///
   /// In zh, this message translates to:
@@ -431,8 +455,38 @@ abstract class AppLocalizations {
   /// No description provided for @gatewayLanAccessHint.
   ///
   /// In zh, this message translates to:
-  /// **'开启后局域网设备必须携带访问密钥'**
+  /// **'开放同局域网设备访问当前端口'**
   String get gatewayLanAccessHint;
+
+  /// No description provided for @gatewaySecuritySection.
+  ///
+  /// In zh, this message translates to:
+  /// **'访问鉴权'**
+  String get gatewaySecuritySection;
+
+  /// No description provided for @gatewayRequireAccessKey.
+  ///
+  /// In zh, this message translates to:
+  /// **'访问密钥保护'**
+  String get gatewayRequireAccessKey;
+
+  /// No description provided for @gatewayRequireAccessKeyHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'本机或受信任局域网默认关闭；开启后将校验 sk-flc- 密钥'**
+  String get gatewayRequireAccessKeyHint;
+
+  /// No description provided for @gatewayLanRequireKey.
+  ///
+  /// In zh, this message translates to:
+  /// **'局域网请求校验密钥'**
+  String get gatewayLanRequireKey;
+
+  /// No description provided for @gatewayLanRequireKeyHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'对来自局域网 IP 的客户端强制要求 sk-flc- 访问密钥'**
+  String get gatewayLanRequireKeyHint;
 
   /// No description provided for @gatewayLanNoIp.
   ///
@@ -479,8 +533,14 @@ abstract class AppLocalizations {
   /// No description provided for @gatewayClientAuthNote.
   ///
   /// In zh, this message translates to:
-  /// **'局域网调用请在 Authorization 请求头中填入访问密钥，或通过 x-api-key 传入。'**
+  /// **'已开启访问密钥保护时，请在 Authorization 请求头或 x-api-key 中传入密钥。'**
   String get gatewayClientAuthNote;
+
+  /// No description provided for @gatewayClientKeylessNote.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前未开启访问密钥保护，客户端可直接访问上述地址。'**
+  String get gatewayClientKeylessNote;
 
   /// No description provided for @gatewayKeysSection.
   ///
@@ -944,6 +1004,156 @@ abstract class AppLocalizations {
   /// **'认证未完成'**
   String get pluginsSignInFailed;
 
+  /// No description provided for @pluginsSelectModels.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择模型'**
+  String get pluginsSelectModels;
+
+  /// No description provided for @pluginsSelectedModelsSummary.
+  ///
+  /// In zh, this message translates to:
+  /// **'已选 {count} / {total} 个模型'**
+  String pluginsSelectedModelsSummary(int count, int total);
+
+  /// No description provided for @pluginsAutoAllModels.
+  ///
+  /// In zh, this message translates to:
+  /// **'全部 {total} 个可用（自动）'**
+  String pluginsAutoAllModels(int total);
+
+  /// No description provided for @pluginsTestInPlayground.
+  ///
+  /// In zh, this message translates to:
+  /// **'在线测试'**
+  String get pluginsTestInPlayground;
+
+  /// No description provided for @pluginsRefreshPlugin.
+  ///
+  /// In zh, this message translates to:
+  /// **'刷新状态'**
+  String get pluginsRefreshPlugin;
+
+  /// No description provided for @pluginsAddAccount.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加账号'**
+  String get pluginsAddAccount;
+
+  /// No description provided for @pluginsAuthenticated.
+  ///
+  /// In zh, this message translates to:
+  /// **'已认证'**
+  String get pluginsAuthenticated;
+
+  /// No description provided for @pluginsNotAuthenticated.
+  ///
+  /// In zh, this message translates to:
+  /// **'未登录'**
+  String get pluginsNotAuthenticated;
+
+  /// No description provided for @pluginsModelsTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'模型选择'**
+  String get pluginsModelsTitle;
+
+  /// No description provided for @pluginsModelsSearchHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索模型 ID 或名称'**
+  String get pluginsModelsSearchHint;
+
+  /// No description provided for @pluginsModelsFilterAll.
+  ///
+  /// In zh, this message translates to:
+  /// **'全部'**
+  String get pluginsModelsFilterAll;
+
+  /// No description provided for @pluginsModelsFilterSelected.
+  ///
+  /// In zh, this message translates to:
+  /// **'已选'**
+  String get pluginsModelsFilterSelected;
+
+  /// No description provided for @pluginsModelsFilterFree.
+  ///
+  /// In zh, this message translates to:
+  /// **'免费'**
+  String get pluginsModelsFilterFree;
+
+  /// No description provided for @pluginsModelsSelectAll.
+  ///
+  /// In zh, this message translates to:
+  /// **'全选'**
+  String get pluginsModelsSelectAll;
+
+  /// No description provided for @pluginsModelsClearAuto.
+  ///
+  /// In zh, this message translates to:
+  /// **'清空（自动）'**
+  String get pluginsModelsClearAuto;
+
+  /// No description provided for @pluginsModelsAutoBanner.
+  ///
+  /// In zh, this message translates to:
+  /// **'未勾选特定模型时，网关将自动暴露当前服务商的全部可用模型。'**
+  String get pluginsModelsAutoBanner;
+
+  /// No description provided for @pluginsModelsCapReasoning.
+  ///
+  /// In zh, this message translates to:
+  /// **'推理'**
+  String get pluginsModelsCapReasoning;
+
+  /// No description provided for @pluginsModelsCapTools.
+  ///
+  /// In zh, this message translates to:
+  /// **'工具调用'**
+  String get pluginsModelsCapTools;
+
+  /// No description provided for @pluginsModelsCapFree.
+  ///
+  /// In zh, this message translates to:
+  /// **'免费'**
+  String get pluginsModelsCapFree;
+
+  /// No description provided for @pluginsModelsEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无可选模型，请先登录后刷新或手动刷新目录'**
+  String get pluginsModelsEmpty;
+
+  /// No description provided for @pluginsEditionLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务版本 / 区域'**
+  String get pluginsEditionLabel;
+
+  /// No description provided for @pluginsEditionWorkbuddyCn.
+  ///
+  /// In zh, this message translates to:
+  /// **'WorkBuddy 国内版 (copilot.tencent.com)'**
+  String get pluginsEditionWorkbuddyCn;
+
+  /// No description provided for @pluginsEditionWorkbuddyIntl.
+  ///
+  /// In zh, this message translates to:
+  /// **'WorkBuddy 国际版 (www.workbuddy.ai)'**
+  String get pluginsEditionWorkbuddyIntl;
+
+  /// No description provided for @pluginsAuthMethodLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'认证方式'**
+  String get pluginsAuthMethodLabel;
+
+  /// No description provided for @pluginsAuthOpenAutoHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'已在浏览器中打开授权页面，完成登录后将自动同步账号与模型。'**
+  String get pluginsAuthOpenAutoHint;
+
   /// No description provided for @routingTitle.
   ///
   /// In zh, this message translates to:
@@ -961,12 +1171,6 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'模型映射'**
   String get routingSegmentAliases;
-
-  /// No description provided for @routingSegmentRedaction.
-  ///
-  /// In zh, this message translates to:
-  /// **'请求脱敏'**
-  String get routingSegmentRedaction;
 
   /// No description provided for @routingGroupsEmpty.
   ///
@@ -1099,126 +1303,6 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'例如：deepseek/deepseek-chat'**
   String get routingAliasTargetHint;
-
-  /// No description provided for @routingRedactEnable.
-  ///
-  /// In zh, this message translates to:
-  /// **'启用请求脱敏'**
-  String get routingRedactEnable;
-
-  /// No description provided for @routingRedactEnableHint.
-  ///
-  /// In zh, this message translates to:
-  /// **'出站前自动替换密钥、邮箱、手机号、IP 等敏感信息'**
-  String get routingRedactEnableHint;
-
-  /// No description provided for @routingRedactRestore.
-  ///
-  /// In zh, this message translates to:
-  /// **'流式响应自动还原'**
-  String get routingRedactRestore;
-
-  /// No description provided for @routingRedactRestoreHint.
-  ///
-  /// In zh, this message translates to:
-  /// **'收到上游响应时将占位符还原为原始值'**
-  String get routingRedactRestoreHint;
-
-  /// No description provided for @routingRedactHits.
-  ///
-  /// In zh, this message translates to:
-  /// **'累计拦截次数'**
-  String get routingRedactHits;
-
-  /// No description provided for @routingRedactBuiltinCount.
-  ///
-  /// In zh, this message translates to:
-  /// **'内置规则'**
-  String get routingRedactBuiltinCount;
-
-  /// No description provided for @routingRedactCustomRules.
-  ///
-  /// In zh, this message translates to:
-  /// **'自定义规则'**
-  String get routingRedactCustomRules;
-
-  /// No description provided for @routingRedactAllowlist.
-  ///
-  /// In zh, this message translates to:
-  /// **'放行白名单'**
-  String get routingRedactAllowlist;
-
-  /// No description provided for @routingRedactAllowlistHint.
-  ///
-  /// In zh, this message translates to:
-  /// **'逗号分隔，命中白名单的文本不脱敏'**
-  String get routingRedactAllowlistHint;
-
-  /// No description provided for @routingRedactRuleAdd.
-  ///
-  /// In zh, this message translates to:
-  /// **'添加脱敏规则'**
-  String get routingRedactRuleAdd;
-
-  /// No description provided for @routingRedactRuleName.
-  ///
-  /// In zh, this message translates to:
-  /// **'规则名称'**
-  String get routingRedactRuleName;
-
-  /// No description provided for @routingRedactRulePattern.
-  ///
-  /// In zh, this message translates to:
-  /// **'正则表达式'**
-  String get routingRedactRulePattern;
-
-  /// No description provided for @routingRedactRuleReplacement.
-  ///
-  /// In zh, this message translates to:
-  /// **'替换占位符'**
-  String get routingRedactRuleReplacement;
-
-  /// No description provided for @routingRedactPreview.
-  ///
-  /// In zh, this message translates to:
-  /// **'脱敏预览'**
-  String get routingRedactPreview;
-
-  /// No description provided for @routingRedactPreviewTitle.
-  ///
-  /// In zh, this message translates to:
-  /// **'交互式脱敏预览'**
-  String get routingRedactPreviewTitle;
-
-  /// No description provided for @routingRedactPreviewInput.
-  ///
-  /// In zh, this message translates to:
-  /// **'测试文本'**
-  String get routingRedactPreviewInput;
-
-  /// No description provided for @routingRedactPreviewInputHint.
-  ///
-  /// In zh, this message translates to:
-  /// **'输入包含密钥、邮箱、手机号或自定义正则的文本进行模拟'**
-  String get routingRedactPreviewInputHint;
-
-  /// No description provided for @routingRedactPreviewRun.
-  ///
-  /// In zh, this message translates to:
-  /// **'执行脱敏检测'**
-  String get routingRedactPreviewRun;
-
-  /// No description provided for @routingRedactPreviewOutput.
-  ///
-  /// In zh, this message translates to:
-  /// **'脱敏输出'**
-  String get routingRedactPreviewOutput;
-
-  /// No description provided for @routingRedactPreviewHits.
-  ///
-  /// In zh, this message translates to:
-  /// **'命中规则明细（{count}）'**
-  String routingRedactPreviewHits(int count);
 
   /// No description provided for @monitorTitle.
   ///
@@ -1358,12 +1442,6 @@ abstract class AppLocalizations {
   /// **'故障转移次数'**
   String get monitorDetailFailovers;
 
-  /// No description provided for @monitorDetailRedactions.
-  ///
-  /// In zh, this message translates to:
-  /// **'脱敏替换次数'**
-  String get monitorDetailRedactions;
-
   /// No description provided for @monitorDetailError.
   ///
   /// In zh, this message translates to:
@@ -1393,6 +1471,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'本机免密'**
   String get playgroundKeyNone;
+
+  /// No description provided for @playgroundKeyNotRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'密钥保护已关闭（免鉴权）'**
+  String get playgroundKeyNotRequired;
 
   /// No description provided for @playgroundKeyCustom.
   ///
@@ -1430,11 +1514,23 @@ abstract class AppLocalizations {
   /// **'生成中...'**
   String get playgroundSending;
 
+  /// No description provided for @playgroundStop.
+  ///
+  /// In zh, this message translates to:
+  /// **'停止'**
+  String get playgroundStop;
+
   /// No description provided for @playgroundOutputLabel.
   ///
   /// In zh, this message translates to:
   /// **'流式响应'**
   String get playgroundOutputLabel;
+
+  /// No description provided for @playgroundStreamRate.
+  ///
+  /// In zh, this message translates to:
+  /// **'{rate} tok/s · {sec} s'**
+  String playgroundStreamRate(String rate, String sec);
 
   /// No description provided for @playgroundMetrics.
   ///

@@ -36,88 +36,154 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       l10n.monitorTitle,
     ];
 
-    final pages = const [
+    const pages = [
       GatewayScreen(),
       ProvidersScreen(),
       RoutingScreen(),
       MonitorScreen(),
     ];
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            Text(titles[_tabIndex]),
-            const SizedBox(width: 8),
-            Container(
-              width: 7,
-              height: 7,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: running ? c.success : c.textMuted,
+    final navDestinations = [
+      (
+        icon: Icons.router_outlined,
+        selectedIcon: Icons.router_rounded,
+        label: l10n.tabGateway,
+      ),
+      (
+        icon: Icons.hub_outlined,
+        selectedIcon: Icons.hub_rounded,
+        label: l10n.tabProviders,
+      ),
+      (
+        icon: Icons.alt_route_rounded,
+        selectedIcon: Icons.alt_route_rounded,
+        label: l10n.tabRouting,
+      ),
+      (
+        icon: Icons.analytics_outlined,
+        selectedIcon: Icons.analytics_rounded,
+        label: l10n.tabMonitor,
+      ),
+    ];
+
+    final bodyStack = IndexedStack(
+      index: _tabIndex,
+      children: pages,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final useRail = constraints.maxWidth >= 720;
+        return Scaffold(
+          appBar: AppBar(
+            title: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    titles[_tabIndex],
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: running ? c.success : c.textMuted,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              FilledButton.tonalIcon(
+                key: const ValueKey('appbar-test-btn'),
+                onPressed: () => showFalconSheet<void>(
+                  context: context,
+                  builder: (_) => const PlaygroundSheet(),
+                ),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  minimumSize: const Size(0, 34),
+                ),
+                icon: const Icon(Icons.terminal_rounded, size: 16),
+                label: Text(l10n.actionTestConsole),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton.icon(
-            key: const ValueKey('appbar-test-btn'),
-            onPressed: () => showFalconSheet<void>(
-              context: context,
-              builder: (_) => const PlaygroundSheet(),
-            ),
-            icon: const Icon(Icons.terminal_rounded, size: 18),
-            label: Text(l10n.actionTestConsole),
-          ),
-          IconButton(
-            key: const ValueKey('appbar-settings-btn'),
-            tooltip: l10n.actionSettings,
-            icon: const Icon(Icons.tune_rounded, size: 20),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const SettingsScreen(),
+              const SizedBox(width: 4),
+              IconButton(
+                key: const ValueKey('appbar-settings-btn'),
+                tooltip: l10n.actionSettings,
+                icon: const Icon(Icons.tune_rounded, size: 20),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const SettingsScreen(),
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 4),
+            ],
           ),
-        ],
-      ),
-      body: IndexedStack(
-        index: _tabIndex,
-        children: pages,
-      ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          border: Border(
-            top: BorderSide(color: c.border, width: FalconTheme.borderWidth),
-          ),
-        ),
-        child: NavigationBar(
-          selectedIndex: _tabIndex,
-          onDestinationSelected: (idx) => setState(() => _tabIndex = idx),
-          destinations: [
-            NavigationDestination(
-              icon: const Icon(Icons.router_outlined),
-              selectedIcon: const Icon(Icons.router_rounded),
-              label: l10n.tabGateway,
-            ),
-            NavigationDestination(
-              icon: const Icon(Icons.hub_outlined),
-              selectedIcon: const Icon(Icons.hub_rounded),
-              label: l10n.tabProviders,
-            ),
-            NavigationDestination(
-              icon: const Icon(Icons.alt_route_rounded),
-              selectedIcon: const Icon(Icons.alt_route_rounded),
-              label: l10n.tabRouting,
-            ),
-            NavigationDestination(
-              icon: const Icon(Icons.analytics_outlined),
-              selectedIcon: const Icon(Icons.analytics_rounded),
-              label: l10n.tabMonitor,
-            ),
-          ],
-        ),
-      ),
+          body: useRail
+              ? Row(
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        border: Border(
+                          right: BorderSide(
+                            color: c.border,
+                            width: FalconTheme.borderWidth,
+                          ),
+                        ),
+                      ),
+                      child: NavigationRail(
+                        selectedIndex: _tabIndex,
+                        labelType: NavigationRailLabelType.all,
+                        onDestinationSelected: (idx) =>
+                            setState(() => _tabIndex = idx),
+                        destinations: [
+                          for (final d in navDestinations)
+                            NavigationRailDestination(
+                              icon: Icon(d.icon),
+                              selectedIcon: Icon(d.selectedIcon),
+                              label: Text(d.label),
+                            ),
+                        ],
+                      ),
+                    ),
+                    Expanded(child: bodyStack),
+                  ],
+                )
+              : bodyStack,
+          bottomNavigationBar: useRail
+              ? null
+              : Container(
+                  decoration: BoxDecoration(
+                    border: Border(
+                      top: BorderSide(
+                        color: c.border,
+                        width: FalconTheme.borderWidth,
+                      ),
+                    ),
+                  ),
+                  child: NavigationBar(
+                    selectedIndex: _tabIndex,
+                    onDestinationSelected: (idx) =>
+                        setState(() => _tabIndex = idx),
+                    destinations: [
+                      for (final d in navDestinations)
+                        NavigationDestination(
+                          icon: Icon(d.icon),
+                          selectedIcon: Icon(d.selectedIcon),
+                          label: d.label,
+                        ),
+                    ],
+                  ),
+                ),
+        );
+      },
     );
   }
 }
