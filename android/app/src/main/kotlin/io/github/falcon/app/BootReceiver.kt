@@ -6,17 +6,28 @@ import android.content.Intent
 import androidx.core.content.ContextCompat
 
 /**
- * Starts [FalconGatewayService] on device boot or app update when `start_on_boot`
- * is enabled in `falcon_runtime_prefs`.
+ * Restarts [FalconGatewayService] on boot (`start_on_boot`) or after an in-place
+ * package upgrade (`ACTION_MY_PACKAGE_REPLACED` while `desired_running` was true).
  */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val action = intent?.action ?: return
-        if (action != Intent.ACTION_BOOT_COMPLETED && action != Intent.ACTION_MY_PACKAGE_REPLACED) {
-            return
+        val shouldStart = when (action) {
+            Intent.ACTION_MY_PACKAGE_REPLACED -> {
+                runCatching {
+                    FalconGatewayService.isDesiredRunning(context) ||
+                        FalconGatewayService.isStartOnBoot(context)
+                }.getOrDefault(false)
+            }
+            Intent.ACTION_BOOT_COMPLETED,
+            Intent.ACTION_LOCKED_BOOT_COMPLETED -> {
+                runCatching {
+                    FalconGatewayService.isStartOnBoot(context)
+                }.getOrDefault(false)
+            }
+            else -> false
         }
-        val prefs = context.getSharedPreferences(FalconGatewayService.PREFS_NAME, Context.MODE_PRIVATE)
-        if (!prefs.getBoolean("start_on_boot", false)) {
+        if (!shouldStart) {
             return
         }
         val serviceIntent = Intent(context, FalconGatewayService::class.java)

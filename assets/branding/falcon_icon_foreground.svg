@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="108" height="108">
+  <defs>
+    <radialGradient id="fgShadow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#0F172A" stop-opacity="0.09" />
+      <stop offset="65%" stop-color="#0F172A" stop-opacity="0.03" />
+      <stop offset="100%" stop-color="#0F172A" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="wingGradL" x1="0.1" y1="0.05" x2="0.85" y2="0.95">
+      <stop offset="0%" stop-color="#3A77EC" />
+      <stop offset="100%" stop-color="#173A8E" />
+    </linearGradient>
+    <linearGradient id="wingGradR" x1="0.9" y1="0.05" x2="0.15" y2="0.95">
+      <stop offset="0%" stop-color="#3A77EC" />
+      <stop offset="100%" stop-color="#173A8E" />
+    </linearGradient>
+    <linearGradient id="bodyGrad" x1="0.5" y1="0.04" x2="0.5" y2="0.98">
+      <stop offset="0%" stop-color="#74AEFF" />
+      <stop offset="38%" stop-color="#3572EA" />
+      <stop offset="100%" stop-color="#1E4DB5" />
+    </linearGradient>
+    <linearGradient id="crestGrad" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0%" stop-color="#91C1FF" />
+      <stop offset="100%" stop-color="#3572EA" />
+    </linearGradient>
+    <linearGradient id="faceGrad" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="65%" stop-color="#FBF5EA" />
+      <stop offset="100%" stop-color="#EFE3CF" />
+    </linearGradient>
+    <linearGradient id="beakGrad" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="#FFCD54" />
+      <stop offset="62%" stop-color="#F49619" />
+      <stop offset="100%" stop-color="#D66D08" />
+    </linearGradient>
+    <linearGradient id="footGrad" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="#FFBD3E" />
+      <stop offset="100%" stop-color="#D9780B" />
+    </linearGradient>
+  </defs>
+
+  <!-- Centered squarely within Android's 66x66dp adaptive safe zone [21..87] -->
+  <g transform="translate(54 55) scale(0.094) translate(-512 -498)">
+    <!-- Soft Neutral Contact Shadow Under Feet -->
+    <ellipse cx="512" cy="804" rx="186" ry="26" fill="url(#fgShadow)" />
+
+    <!-- Subtle Tail Feathers Behind Body -->
+    <path d="M 464 744 L 486 802 C 500 812, 524 812, 538 802 L 560 744 Z" fill="#15327E" />
+
+    <!-- Cute Feet -->
+    <path d="M 424 756 C 406 758, 396 778, 408 794 C 418 806, 438 804, 448 796 C 458 806, 476 804, 482 788 C 486 772, 474 756, 456 756 Z" fill="url(#footGrad)" />
+    <path d="M 600 756 C 618 758, 628 778, 616 794 C 606 806, 586 804, 576 796 C 566 806, 548 804, 542 788 C 538 772, 550 756, 568 756 Z" fill="url(#footGrad)" />
+
+    <!-- Sleek Falcon Folded Wings -->
+    <path d="M 332 478 C 254 504, 218 594, 248 676 C 264 720, 314 752, 344 742 C 368 734, 384 686, 376 624 C 368 564, 358 502, 332 478 Z" fill="url(#wingGradL)" />
+    <path d="M 692 478 C 770 504, 806 594, 776 676 C 760 720, 710 752, 680 742 C 656 734, 640 686, 648 624 C 656 564, 666 502, 692 478 Z" fill="url(#wingGradR)" />
+
+    <path d="M 268 584 C 258 628, 268 678, 302 710" fill="none" stroke="#76B0FF" stroke-width="9" stroke-linecap="round" stroke-opacity="0.38" />
+    <path d="M 756 584 C 766 628, 756 678, 722 710" fill="none" stroke="#76B0FF" stroke-width="9" stroke-linecap="round" stroke-opacity="0.38" />
+
+    <!-- Dynamic Swept Falcon Crest -->
+    <path d="M 484 260 C 464 214, 488 176, 518 202 C 524 166, 566 154, 574 188 C 580 210, 562 232, 550 242 C 572 224, 598 228, 586 254 C 572 272, 540 272, 512 270 Z" fill="url(#crestGrad)" />
+    <path d="M 526 244 C 534 212, 548 192, 560 184" fill="none" stroke="#CFE3FF" stroke-width="7" stroke-linecap="round" stroke-opacity="0.65" />
+
+    <!-- Main Plump Falcon Body & Head -->
+    <path d="M 512 246 C 646 246, 716 326, 712 436 C 710 498, 730 564, 714 644 C 696 734, 616 776, 512 776 C 408 776, 328 734, 310 644 C 294 564, 314 498, 312 436 C 308 326, 378 246, 512 246 Z" fill="url(#bodyGrad)" />
+
+    <ellipse cx="512" cy="284" rx="110" ry="26" fill="#A6CEFF" fill-opacity="0.28" />
+
+    <!-- Falcon Cream Chest & Facial Mask -->
+    <path d="M 512 362 C 528 332, 568 314, 616 322 C 668 330, 694 374, 684 430 C 676 474, 646 498, 618 508 C 650 536, 672 586, 662 644 C 648 720, 586 754, 512 754 C 438 754, 376 720, 362 644 C 352 586, 374 536, 406 508 C 378 498, 348 474, 340 430 C 330 374, 356 330, 408 322 C 456 314, 496 332, 512 362 Z" fill="url(#faceGrad)" />
+
+    <!-- Iconic Falcon Soft Malar Cheek Feather Accents -->
+    <path d="M 342 430 C 348 468, 372 496, 406 508 C 384 484, 368 456, 366 432 C 362 422, 346 420, 342 430 Z" fill="#2A5CC8" fill-opacity="0.28" />
+    <path d="M 682 430 C 676 468, 652 496, 618 508 C 640 484, 656 456, 658 432 C 662 422, 678 420, 682 430 Z" fill="#2A5CC8" fill-opacity="0.28" />
+
+    <!-- Cheek Blush -->
+    <ellipse cx="384" cy="468" rx="24" ry="13" fill="#FF9292" fill-opacity="0.34" />
+    <ellipse cx="640" cy="468" rx="24" ry="13" fill="#FF9292" fill-opacity="0.34" />
+
+    <!-- Chest Feather Arcs -->
+    <path d="M 458 606 Q 485 622 512 606 Q 539 622 566 606" fill="none" stroke="#DFCBB0" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.62" />
+    <path d="M 436 650 Q 474 668 512 650 Q 550 668 588 650" fill="none" stroke="#DFCBB0" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.54" />
+
+    <!-- Gentle Falcon Brow Ridge -->
+    <path d="M 366 374 C 392 350, 434 348, 466 368" fill="none" stroke="#224CA8" stroke-width="13" stroke-linecap="round" stroke-opacity="0.26" />
+    <path d="M 658 374 C 632 350, 590 348, 558 368" fill="none" stroke="#224CA8" stroke-width="13" stroke-linecap="round" stroke-opacity="0.26" />
+
+    <!-- Bright Eyes -->
+    <circle cx="426" cy="416" r="44" fill="#131B2E" />
+    <path d="M 392 430 A 38 38 0 0 0 460 430 A 42 28 0 0 1 392 430 Z" fill="#3764B5" fill-opacity="0.46" />
+    <circle cx="412" cy="400" r="15.5" fill="#FFFFFF" />
+    <circle cx="440" cy="432" r="6.5" fill="#FFFFFF" fill-opacity="0.9" />
+
+    <circle cx="598" cy="416" r="44" fill="#131B2E" />
+    <path d="M 564 430 A 38 38 0 0 0 632 430 A 42 28 0 0 1 564 430 Z" fill="#3764B5" fill-opacity="0.46" />
+    <circle cx="584" cy="400" r="15.5" fill="#FFFFFF" />
+    <circle cx="612" cy="432" r="6.5" fill="#FFFFFF" fill-opacity="0.9" />
+
+    <!-- Cute Hooked Falcon Beak -->
+    <path d="M 488 486 C 488 506, 536 506, 536 486 Z" fill="#BC5C06" />
+    <path d="M 512 432 C 538 432, 554 450, 546 470 C 540 488, 520 510, 512 510 C 504 510, 484 488, 478 470 C 470 450, 486 432, 512 432 Z" fill="url(#beakGrad)" />
+    <ellipse cx="503" cy="452" rx="13" ry="6.5" fill="#FFE79E" fill-opacity="0.74" transform="rotate(-14 503 452)" />
+  </g>
+</svg>
