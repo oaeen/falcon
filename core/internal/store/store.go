@@ -119,6 +119,16 @@ func normalizeConfig(cfg *types.Config) {
 	if cfg.Settings.RedactAllow == nil {
 		cfg.Settings.RedactAllow = []string{}
 	}
+	// Privacy redaction is disabled permanently; never mask outbound prompts.
+	cfg.Settings.RedactEnabled = false
+	if cfg.Settings.PluginSelectedModels == nil {
+		cfg.Settings.PluginSelectedModels = map[string][]string{}
+	}
+	for k, v := range cfg.Settings.PluginSelectedModels {
+		if len(v) == 0 {
+			delete(cfg.Settings.PluginSelectedModels, k)
+		}
+	}
 	if cfg.Keys == nil {
 		cfg.Keys = []types.AccessKey{}
 	}
@@ -286,6 +296,9 @@ func (s *Store) UpdateSettings(patch types.SettingsPatch) (types.Settings, bool,
 	if patch.LanEnabled != nil {
 		s.cfg.Settings.LanEnabled = *patch.LanEnabled
 	}
+	if patch.RequireAccessKey != nil {
+		s.cfg.Settings.RequireAccessKey = *patch.RequireAccessKey
+	}
 	if patch.AllowLocalKeyless != nil {
 		s.cfg.Settings.AllowLocalKeyless = *patch.AllowLocalKeyless
 	}
@@ -296,7 +309,7 @@ func (s *Store) UpdateSettings(patch types.SettingsPatch) (types.Settings, bool,
 		s.cfg.Settings.CorsOrigins = append([]string{}, (*patch.CorsOrigins)...)
 	}
 	if patch.RedactEnabled != nil {
-		s.cfg.Settings.RedactEnabled = *patch.RedactEnabled
+		s.cfg.Settings.RedactEnabled = false
 	}
 	if patch.RedactRestore != nil {
 		s.cfg.Settings.RedactRestore = *patch.RedactRestore
@@ -310,12 +323,67 @@ func (s *Store) UpdateSettings(patch types.SettingsPatch) (types.Settings, bool,
 	if patch.ChinaMirror != nil {
 		s.cfg.Settings.ChinaMirror = *patch.ChinaMirror
 	}
+	if patch.PluginSelectedModels != nil {
+		next := make(map[string][]string, len(*patch.PluginSelectedModels))
+		for k, v := range *patch.PluginSelectedModels {
+			k = strings.TrimSpace(k)
+			if k == "" || len(v) == 0 {
+				continue
+			}
+			cp := make([]string, 0, len(v))
+			seen := make(map[string]bool, len(v))
+			for _, m := range v {
+				m = strings.TrimSpace(m)
+				if m != "" && !seen[m] {
+					seen[m] = true
+					cp = append(cp, m)
+				}
+			}
+			if len(cp) > 0 {
+				next[k] = cp
+			}
+		}
+		s.cfg.Settings.PluginSelectedModels = next
+	}
 	normalizeConfig(&s.cfg)
 	if err := s.saveConfigLocked(); err != nil {
 		return s.cfg.Settings, false, err
 	}
 	relisten := s.cfg.Settings.Port != prevPort || s.cfg.Settings.LanEnabled != prevLAN
 	return cloneSettings(s.cfg.Settings), relisten, nil
+}
+
+// SetPluginSelectedModels updates selected models for one plugin provider (empty slice resets to all models).
+func (s *Store) SetPluginSelectedModels(providerID string, models []string) (types.Settings, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	pid := strings.TrimSpace(providerID)
+	if pid == "" {
+		return cloneSettings(s.cfg.Settings), errors.New("providerId is required")
+	}
+	if s.cfg.Settings.PluginSelectedModels == nil {
+		s.cfg.Settings.PluginSelectedModels = map[string][]string{}
+	}
+	cp := make([]string, 0, len(models))
+	seen := make(map[string]bool, len(models))
+	for _, m := range models {
+		m = strings.TrimSpace(m)
+		if m != "" && !seen[m] {
+			seen[m] = true
+			cp = append(cp, m)
+		}
+	}
+	if len(cp) == 0 {
+		delete(s.cfg.Settings.PluginSelectedModels, pid)
+	} else {
+		s.cfg.Settings.PluginSelectedModels[pid] = cp
+	}
+	normalizeConfig(&s.cfg)
+	if err := s.saveConfigLocked(); err != nil {
+		return cloneSettings(s.cfg.Settings), err
+	}
+	return cloneSettings(s.cfg.Settings), nil
 }
 
 func cloneSettings(st types.Settings) types.Settings {
@@ -713,6 +781,17 @@ func (s *Store) UpsertAlias(alias, target string) (map[string]string, error) {
 		out[k] = v
 	}
 	return out, nil
+}
+
+// SetPluginsList replaces the persisted plugin list atomically (used during canonical migration).
+func (s *Store) SetPluginsList(entries []types.InstalledPluginEntry) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if entries == nil {
+		entries = []types.InstalledPluginEntry{}
+	}
+	s.cfg.Plugins = append([]types.InstalledPluginEntry{}, entries...)
+	return s.saveConfigLocked()
 }
 
 // UpsertPluginEntry adds or updates a plugin entry in config.json.

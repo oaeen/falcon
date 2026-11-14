@@ -25,6 +25,8 @@ func TestAuthenticateLoopbackVsLAN(t *testing.T) {
 	}
 
 	settings := st.Settings()
+	reqAccess := true
+	settings.RequireAccessKey = reqAccess
 
 	// 1. Loopback without key succeeds when allowLocalKeyless=true
 	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
@@ -84,10 +86,98 @@ func TestAuthenticateLoopbackVsLAN(t *testing.T) {
 		t.Fatalf("expected 429 after 2 requests, got %d", code)
 	}
 
-	// 7. Loopback keyless disabled -> 401
+	// 7. Loopback keyless disabled -> 401 when requireAccessKey=true
 	settings.AllowLocalKeyless = false
 	_, code, _ = Authenticate(req, st, settings)
 	if code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 when allowLocalKeyless=false, got %d", code)
+	}
+}
+
+func TestOptionalAccessKeyAndLanDefaults(t *testing.T) {
+	st, err := store.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings := st.Settings()
+	if settings.Port != 18787 || settings.LanEnabled || settings.RequireAccessKey || !settings.AllowLocalKeyless || settings.RedactEnabled {
+		t.Fatalf("unexpected default settings: %+v", settings)
+	}
+
+	// Verify RedactEnabled cannot be re-enabled through UpdateSettings.
+	wantTrue := true
+	updated, _, err := st.UpdateSettings(types.SettingsPatch{RedactEnabled: &wantTrue})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.RedactEnabled {
+		t.Fatalf("expected RedactEnabled forced false, got true")
+	}
+
+	k, _, err := st.CreateOrUpdateKey(types.AccessKey{
+		Name:          "Scoped LAN Key",
+		Enabled:       true,
+		AllowedModels: []string{"openai/*"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Loopback keyless passes by default
+	reqLoop := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	reqLoop.RemoteAddr = "127.0.0.1:41000"
+	id, code, _ := Authenticate(reqLoop, st, st.Settings())
+	if code != 0 || !id.Keyless {
+		t.Fatalf("expected loopback pass without key, got code=%d id=%+v", code, id)
+	}
+
+	// LAN keyless passes when requireAccessKey=false
+	reqLAN := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	reqLAN.RemoteAddr = "192.168.1.99:41000"
+	id, code, _ = Authenticate(reqLAN, st, st.Settings())
+	if code != 0 || !id.Keyless || id.Peer.Kind != "lan" || id.Peer.IP != "192.168.1.99" {
+		t.Fatalf("expected LAN keyless pass when requireAccessKey=false, got code=%d id=%+v", code, id)
+	}
+
+	// Dummy bearer header from client apps also succeeds cleanly when requireAccessKey=false
+	reqDummy := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	reqDummy.RemoteAddr = "192.168.1.99:41000"
+	reqDummy.Header.Set("Authorization", "Bearer dummy-app-token")
+	id, code, _ = Authenticate(reqDummy, st, st.Settings())
+	if code != 0 || !id.Keyless {
+		t.Fatalf("expected dummy key to pass keyless when requireAccessKey=false, got code=%d", code)
+	}
+
+	// Valid managed key still binds identity and model allowlist
+	reqKeyed := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	reqKeyed.RemoteAddr = "192.168.1.99:41000"
+	reqKeyed.Header.Set("Authorization", "Bearer "+k.Secret)
+	id, code, _ = Authenticate(reqKeyed, st, st.Settings())
+	if code != 0 || id.KeyID != k.ID {
+		t.Fatalf("expected valid key binding, got code=%d id=%+v", code, id)
+	}
+	if ModelAllowed(id, "anthropic/claude-sonnet-4") {
+		t.Fatal("expected keyed model restriction to remain active")
+	}
+
+	// IP allowlist still protects LAN even when requireAccessKey=false
+	patchIps := []string{"10.0.0.0/8"}
+	_, _, err = st.UpdateSettings(types.SettingsPatch{AllowIps: &patchIps})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, code, _ = Authenticate(reqLAN, st, st.Settings())
+	if code != http.StatusForbidden {
+		t.Fatalf("expected 403 for LAN IP outside allowlist, got %d", code)
+	}
+
+	// Toggling requireAccessKey=true restores strict key enforcement on LAN
+	_, _, err = st.UpdateSettings(types.SettingsPatch{AllowIps: &[]string{}, RequireAccessKey: &wantTrue})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, code, _ = Authenticate(reqLAN, st, st.Settings())
+	if code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 when requireAccessKey=true on LAN, got %d", code)
 	}
 }

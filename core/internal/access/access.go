@@ -149,9 +149,23 @@ func Authenticate(r *http.Request, st *store.Store, settings types.Settings) (Id
 			}
 		}
 		if matched == nil {
+			if !settings.RequireAccessKey {
+				return Identity{
+					Peer:    peer,
+					Keyless: true,
+					KeyName: peer.Kind + "-keyless",
+				}, 0, ""
+			}
 			return Identity{Peer: peer}, http.StatusUnauthorized, "Invalid gateway access key"
 		}
 		if !matched.Enabled {
+			if !settings.RequireAccessKey {
+				return Identity{
+					Peer:    peer,
+					Keyless: true,
+					KeyName: peer.Kind + "-keyless",
+				}, 0, ""
+			}
 			return Identity{Peer: peer}, http.StatusUnauthorized, "Gateway access key is disabled"
 		}
 		todayReqs, todayUsd, monthUsd := st.GetKeySpend(matched.ID)
@@ -169,6 +183,14 @@ func Authenticate(r *http.Request, st *store.Store, settings types.Settings) (Id
 			Key:     matched,
 			KeyID:   matched.ID,
 			KeyName: matched.Name,
+		}, 0, ""
+	}
+
+	if !settings.RequireAccessKey {
+		return Identity{
+			Peer:    peer,
+			Keyless: true,
+			KeyName: peer.Kind + "-keyless",
 		}, 0, ""
 	}
 

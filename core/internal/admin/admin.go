@@ -130,7 +130,7 @@ func (s *Server) handler() http.Handler {
 		switch {
 		case path == "/admin/v1/state" && r.Method == http.MethodGet:
 			s.handleState(w)
-		case path == "/admin/v1/settings" && r.Method == http.MethodPost:
+		case path == "/admin/v1/settings" && (r.Method == http.MethodPost || r.Method == http.MethodPatch):
 			s.handleSettings(w, r)
 		case path == "/admin/v1/presets" && r.Method == http.MethodGet:
 			writeJSON(w, http.StatusOK, map[string]any{"presets": provider.Presets()})
@@ -170,6 +170,10 @@ func (s *Server) handler() http.Handler {
 			s.handlePluginToggle(w, r)
 		case path == "/admin/v1/plugins/options" && r.Method == http.MethodPost:
 			s.handlePluginOptions(w, r)
+		case path == "/admin/v1/plugins/models" && r.Method == http.MethodPost:
+			s.handlePluginModels(w, r)
+		case path == "/admin/v1/plugins/refresh" && r.Method == http.MethodPost:
+			s.handlePluginRefresh(w, r)
 		case path == "/admin/v1/plugins/signin/start" && r.Method == http.MethodPost:
 			s.handlePluginSignInStart(w, r)
 		case strings.HasPrefix(path, "/admin/v1/plugins/signin/") && strings.HasSuffix(path, "/callback") && r.Method == http.MethodPost:
@@ -473,6 +477,52 @@ func (s *Server) handlePluginOptions(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "plugins": s.plugins.StatePlugins()})
+}
+
+func (s *Server) handlePluginModels(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		PluginID       string   `json:"pluginId"`
+		Package        string   `json:"package"`
+		ProviderID     string   `json:"providerId"`
+		SelectedModels []string `json:"selectedModels"`
+	}
+	if err := decodeBody(r, &body); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	pluginID := strings.TrimSpace(body.PluginID)
+	if pluginID == "" {
+		pluginID = strings.TrimSpace(body.Package)
+	}
+	if err := s.plugins.SetSelectedModels(pluginID, body.ProviderID, body.SelectedModels); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":       true,
+		"settings": s.store.Settings(),
+		"plugins":  s.plugins.StatePlugins(),
+		"status":   s.gateway.Status(),
+	})
+}
+
+func (s *Server) handlePluginRefresh(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		PluginID string `json:"pluginId"`
+		Package  string `json:"package"`
+	}
+	if r.Body != nil {
+		_ = json.NewDecoder(io.LimitReader(r.Body, 16*1024)).Decode(&body)
+	}
+	if err := s.plugins.RefreshProviders(r.Context()); err != nil {
+		writeErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":      true,
+		"plugins": s.plugins.StatePlugins(),
+		"status":  s.gateway.Status(),
+	})
 }
 
 func (s *Server) handlePluginSignInStart(w http.ResponseWriter, r *http.Request) {

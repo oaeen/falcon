@@ -114,12 +114,40 @@ func (m *Manager) saveOptions(opts map[string]map[string]bool) error {
 	return store.WriteAtomicJSON(m.optionsPath(), opts)
 }
 
+func (m *Manager) reconcileInstalled() {
+	cfg := m.store.ConfigSnapshot()
+	cleaned, changed := ReconcileInstalledEntries(m.store.DataDir(), cfg.Plugins)
+	if changed {
+		_ = m.store.SetPluginsList(cleaned)
+	}
+}
+
+func sortPackageProviders(list []PluginProviderState) {
+	if len(list) < 2 {
+		return
+	}
+	// Prefer domestic WorkBuddy edition ("workbuddy") ahead of international ("workbuddy-ai").
+	for i := 0; i < len(list); i++ {
+		if list[i].ID == "workbuddy" && i > 0 {
+			wb := list[i]
+			copy(list[1:i+1], list[0:i])
+			list[0] = wb
+			break
+		}
+	}
+}
+
 // Reload starts/restarts the active host (if plugins are enabled) and refreshes discovered providers.
 func (m *Manager) Reload(ctx context.Context) error {
+	m.reconcileInstalled()
 	cfg := m.store.ConfigSnapshot()
 	var active []types.InstalledPluginEntry
+	seen := make(map[string]bool, len(cfg.Plugins))
 	for _, p := range cfg.Plugins {
-		if p.Enabled {
+		canon := CanonicalPluginPackage(p.Package)
+		if p.Enabled && canon != "" && !seen[canon] {
+			seen[canon] = true
+			p.Package = canon
 			active = append(active, p)
 		}
 	}
@@ -154,7 +182,7 @@ func (m *Manager) Reload(ctx context.Context) error {
 			spec, _ := item["spec"].(string)
 			errMsg, _ := item["error"].(string)
 			if spec != "" && errMsg != "" {
-				errs[spec] = errMsg
+				errs[CanonicalPluginPackage(spec)] = errMsg
 			}
 		}
 		m.mu.Lock()
@@ -168,6 +196,7 @@ func (m *Manager) Reload(ctx context.Context) error {
 // RefreshProviders refreshes provider & model metadata from the active host.
 func (m *Manager) RefreshProviders(ctx context.Context) error {
 	cfg := m.store.ConfigSnapshot()
+	selectedByProv := cfg.Settings.PluginSelectedModels
 	if m.runtimeMode == "bun" && m.bunHost != nil && m.bunHost.IsRunning() {
 		var rows []struct {
 			ID              string             `json:"id"`
@@ -177,6 +206,7 @@ func (m *Manager) RefreshProviders(ctx context.Context) error {
 			Methods         []PluginAuthMethod `json:"methods"`
 			SupportsUsage   bool               `json:"supportsUsage"`
 			SupportsCheckin bool               `json:"supportsCheckin"`
+			SupportsModels  bool               `json:"supportsModels"`
 			Options         []struct {
 				Key           string            `json:"key"`
 				Label         string            `json:"label"`
@@ -189,8 +219,9 @@ func (m *Manager) RefreshProviders(ctx context.Context) error {
 			Accounts  []PluginAccountState `json:"accounts"`
 			Models    []PluginModelInfo    `json:"models"`
 			ListError string               `json:"listError"`
+			LastError string               `json:"lastError"`
 		}
-		if err := m.bunHost.Call(ctx, "providers", map[string]any{}, &rows); err == nil {
+		if err := m.bunHost.Call(ctx, "providers", map[string]any{"repair": true}, &rows); err == nil {
 			opts := m.readOptions()
 			provMap := make(map[string]PluginProviderState, len(rows))
 			pkgMap := make(map[string][]PluginProviderState)
@@ -236,27 +267,44 @@ func (m *Manager) RefreshProviders(ctx context.Context) error {
 					})
 				}
 				for i := range r.Accounts {
+					r.Accounts[i].Enabled = true
 					if q, ok := quotasCopy[r.Accounts[i].ID]; ok {
 						r.Accounts[i].Quota = q
+						r.Accounts[i].Quotas = normalizeQuotaWindows(q.Windows)
 					}
 					if c, ok := checkinsCopy[r.Accounts[i].ID]; ok {
 						r.Accounts[i].LastCheckin = c
 					}
 				}
+				lastErr := r.LastError
+				if lastErr == "" {
+					lastErr = r.ListError
+				}
+				sel := append([]string{}, selectedByProv[r.ID]...)
+				specCanon := CanonicalPluginPackage(r.Spec)
 				st := PluginProviderState{
 					ID:              r.ID,
 					Name:            r.Name,
 					Protocol:        r.Protocol,
+					Authenticated:   len(r.Accounts) > 0,
+					AccountCount:    len(r.Accounts),
 					Models:          r.Models,
+					SelectedModels:  sel,
 					Methods:         r.Methods,
 					Options:         pOpts,
 					SupportsUsage:   r.SupportsUsage,
 					SupportsCheckin: r.SupportsCheckin,
+					SupportsModels:  r.SupportsModels,
 					Accounts:        r.Accounts,
 					ListError:       r.ListError,
+					LastError:       lastErr,
 				}
 				provMap[r.ID] = st
-				pkgMap[r.Spec] = append(pkgMap[r.Spec], st)
+				pkgMap[specCanon] = append(pkgMap[specCanon], st)
+			}
+			for k, list := range pkgMap {
+				sortPackageProviders(list)
+				pkgMap[k] = list
 			}
 			m.mu.Lock()
 			m.providers = provMap
@@ -274,6 +322,7 @@ func (m *Manager) RefreshProviders(ctx context.Context) error {
 	checkinsCopy := m.checkins
 	m.mu.RUnlock()
 	for pkg, list := range pkgMap {
+		canonPkg := CanonicalPluginPackage(pkg)
 		for idx := range list {
 			for ai := range list[idx].Accounts {
 				list[idx].Accounts[ai].Enabled = true
@@ -286,9 +335,21 @@ func (m *Manager) RefreshProviders(ctx context.Context) error {
 					list[idx].Accounts[ai].LastCheckin = c
 				}
 			}
+			list[idx].Authenticated = len(list[idx].Accounts) > 0
+			list[idx].AccountCount = len(list[idx].Accounts)
+			if len(selectedByProv[list[idx].ID]) > 0 {
+				list[idx].SelectedModels = append([]string{}, selectedByProv[list[idx].ID]...)
+			}
+			if list[idx].LastError == "" {
+				list[idx].LastError = list[idx].ListError
+			}
 			provMap[list[idx].ID] = list[idx]
 		}
-		pkgMap[pkg] = list
+		sortPackageProviders(list)
+		if canonPkg != pkg {
+			delete(pkgMap, pkg)
+		}
+		pkgMap[canonPkg] = append(pkgMap[canonPkg], list...)
 	}
 	m.mu.Lock()
 	m.providers = provMap
@@ -297,15 +358,21 @@ func (m *Manager) RefreshProviders(ctx context.Context) error {
 	return nil
 }
 
-// Market returns the marketplace directory annotated with local installation status.
+// Market returns the marketplace directory annotated with local installation status (deduplicated canonically).
 func (m *Manager) Market(ctx context.Context) []MarketItem {
+	m.reconcileInstalled()
 	settings := m.store.Settings()
 	items := FetchLiveMarket(ctx, m.httpClient, settings.ChinaMirror)
 	cfg := m.store.ConfigSnapshot()
 
 	installed := make(map[string]types.InstalledPluginEntry, len(cfg.Plugins))
 	for _, p := range cfg.Plugins {
-		installed[p.Package] = p
+		canon := CanonicalPluginPackage(p.Package)
+		if cur, ok := installed[canon]; ok {
+			p.Enabled = p.Enabled || cur.Enabled
+		}
+		p.Package = canon
+		installed[canon] = p
 	}
 	m.mu.RLock()
 	errs := m.loadedErrors
@@ -313,26 +380,29 @@ func (m *Manager) Market(ctx context.Context) []MarketItem {
 
 	seen := make(map[string]bool)
 	for i := range items {
-		seen[items[i].Package] = true
-		if ent, ok := installed[items[i].Package]; ok {
+		canon := CanonicalPluginPackage(items[i].Package)
+		items[i].Package = canon
+		seen[canon] = true
+		if ent, ok := installed[canon]; ok {
 			items[i].Installed = true
 			items[i].Enabled = ent.Enabled
-			items[i].Version = InstalledVersion(m.store.DataDir(), ent.Package)
-			items[i].Error = errs[ent.Package]
+			items[i].Version = InstalledVersion(m.store.DataDir(), canon)
+			items[i].Error = errs[canon]
 		}
 	}
-	for _, ent := range cfg.Plugins {
-		if seen[ent.Package] {
+	for canon, ent := range installed {
+		if seen[canon] {
 			continue
 		}
+		seen[canon] = true
 		items = append(items, MarketItem{
-			Package:   ent.Package,
-			Name:      shortPluginSlug(ent.Package),
+			Package:   canon,
+			Name:      shortPluginSlug(canon),
 			Kind:      "provider",
 			Installed: true,
 			Enabled:   ent.Enabled,
-			Version:   InstalledVersion(m.store.DataDir(), ent.Package),
-			Error:     errs[ent.Package],
+			Version:   InstalledVersion(m.store.DataDir(), canon),
+			Error:     errs[canon],
 		})
 	}
 	return items
@@ -340,6 +410,7 @@ func (m *Manager) Market(ctx context.Context) []MarketItem {
 
 // Install downloads, verifies, installs, and activates a plugin package.
 func (m *Manager) Install(ctx context.Context, rawSpec string) (InstalledPluginState, error) {
+	m.reconcileInstalled()
 	items := BuiltinMarket()
 	spec := ResolveSpec(rawSpec, items)
 	if spec == "" {
@@ -350,9 +421,10 @@ func (m *Manager) Install(ctx context.Context, rawSpec string) (InstalledPluginS
 	if err != nil {
 		return InstalledPluginState{}, err
 	}
+	canonPkg := CanonicalPluginPackage(res.Package)
 	entry := types.InstalledPluginEntry{
-		Package: res.Package,
-		Spec:    spec,
+		Package: canonPkg,
+		Spec:    canonicalSpec(spec),
 		Enabled: true,
 	}
 	if err := m.store.UpsertPluginEntry(entry); err != nil {
@@ -362,13 +434,13 @@ func (m *Manager) Install(ctx context.Context, rawSpec string) (InstalledPluginS
 		return InstalledPluginState{}, err
 	}
 	for _, st := range m.StatePlugins() {
-		if st.Package == res.Package {
+		if st.Package == canonPkg {
 			return st, nil
 		}
 	}
 	return InstalledPluginState{
-		Package: res.Package,
-		Name:    shortPluginSlug(res.Package),
+		Package: canonPkg,
+		Name:    shortPluginSlug(canonPkg),
 		Enabled: true,
 		Version: res.Version,
 	}, nil
@@ -376,21 +448,86 @@ func (m *Manager) Install(ctx context.Context, rawSpec string) (InstalledPluginS
 
 // Remove uninstalls a plugin and removes its files from disk.
 func (m *Manager) Remove(ctx context.Context, pkg string) error {
-	pkg = PackageNameOf(pkg)
-	if err := m.store.RemovePluginEntry(pkg); err != nil {
+	rawPkg := PackageNameOf(pkg)
+	canonPkg := CanonicalPluginPackage(rawPkg)
+	if err := m.store.RemovePluginEntry(canonPkg); err != nil {
 		return err
 	}
-	_ = os.RemoveAll(PackageDir(m.store.DataDir(), pkg))
+	if rawPkg != "" && rawPkg != canonPkg {
+		_ = m.store.RemovePluginEntry(rawPkg)
+		_ = os.RemoveAll(PackageDir(m.store.DataDir(), rawPkg))
+	}
+	if strings.HasPrefix(canonPkg, "@magpie-community/") {
+		bare := strings.TrimPrefix(canonPkg, "@magpie-community/")
+		_ = m.store.RemovePluginEntry(bare)
+		_ = os.RemoveAll(PackageDir(m.store.DataDir(), bare))
+	}
+	_ = os.RemoveAll(PackageDir(m.store.DataDir(), canonPkg))
 	return m.Reload(ctx)
 }
 
 // Toggle enables or disables an installed plugin.
 func (m *Manager) Toggle(ctx context.Context, pkg string, enabled bool) error {
-	pkg = PackageNameOf(pkg)
-	if err := m.store.TogglePluginEntry(pkg, enabled); err != nil {
+	m.reconcileInstalled()
+	canonPkg := CanonicalPluginPackage(PackageNameOf(pkg))
+	if err := m.store.TogglePluginEntry(canonPkg, enabled); err != nil {
 		return err
 	}
 	return m.Reload(ctx)
+}
+
+// SetSelectedModels persists active model selection for a plugin provider (or package's providers).
+func (m *Manager) SetSelectedModels(pluginID, providerID string, selectedModels []string) error {
+	targetProviders := []string{}
+	pid := strings.TrimSpace(providerID)
+	if pid != "" {
+		targetProviders = append(targetProviders, pid)
+	} else if pkg := CanonicalPluginPackage(PackageNameOf(pluginID)); pkg != "" {
+		m.mu.RLock()
+		for _, pp := range m.pkgProviders[pkg] {
+			targetProviders = append(targetProviders, pp.ID)
+		}
+		m.mu.RUnlock()
+		if len(targetProviders) == 0 {
+			for _, it := range BuiltinMarket() {
+				if it.Package == pkg {
+					targetProviders = append(targetProviders, it.Providers...)
+					break
+				}
+			}
+		}
+	}
+	if len(targetProviders) == 0 {
+		return errors.New("providerId is required")
+	}
+
+	var updatedSettings types.Settings
+	for _, target := range targetProviders {
+		st, err := m.store.SetPluginSelectedModels(target, selectedModels)
+		if err != nil {
+			return err
+		}
+		updatedSettings = st
+	}
+
+	m.mu.Lock()
+	for _, target := range targetProviders {
+		sel := append([]string{}, updatedSettings.PluginSelectedModels[target]...)
+		if pp, ok := m.providers[target]; ok {
+			pp.SelectedModels = sel
+			m.providers[target] = pp
+		}
+		for pkg, list := range m.pkgProviders {
+			for i := range list {
+				if list[i].ID == target {
+					list[i].SelectedModels = sel
+				}
+			}
+			m.pkgProviders[pkg] = list
+		}
+	}
+	m.mu.Unlock()
+	return nil
 }
 
 // SetOption updates a plugin provider boolean option.
@@ -414,23 +551,24 @@ func (m *Manager) SetPackageOptions(ctx context.Context, pkg string, values map[
 	if len(values) == 0 {
 		return nil
 	}
+	canonPkg := CanonicalPluginPackage(PackageNameOf(pkg))
 	m.mu.RLock()
-	provs := m.pkgProviders[PackageNameOf(pkg)]
+	provs := m.pkgProviders[canonPkg]
 	m.mu.RUnlock()
 	opts := m.readOptions()
 	targetIDs := make([]string, 0, len(provs))
 	for _, p := range provs {
 		targetIDs = append(targetIDs, p.ID)
 	}
-	if len(targetIDs) == 0 && pkg != "" {
+	if len(targetIDs) == 0 && canonPkg != "" {
 		for _, it := range BuiltinMarket() {
-			if it.Package == PackageNameOf(pkg) {
+			if it.Package == canonPkg {
 				targetIDs = append(targetIDs, it.Providers...)
 			}
 		}
 	}
 	if len(targetIDs) == 0 {
-		targetIDs = append(targetIDs, PackageNameOf(pkg))
+		targetIDs = append(targetIDs, canonPkg)
 	}
 	for _, pid := range targetIDs {
 		if opts[pid] == nil {
@@ -487,13 +625,19 @@ func (m *Manager) StatePlugins() []InstalledPluginState {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
+	seen := make(map[string]bool, len(cfg.Plugins))
 	out := make([]InstalledPluginState, 0, len(cfg.Plugins))
 	for _, ent := range cfg.Plugins {
-		name := names[ent.Package]
-		if name == "" {
-			name = shortPluginSlug(ent.Package)
+		canonPkg := CanonicalPluginPackage(ent.Package)
+		if seen[canonPkg] {
+			continue
 		}
-		provs := m.pkgProviders[ent.Package]
+		seen[canonPkg] = true
+		name := names[canonPkg]
+		if name == "" {
+			name = shortPluginSlug(canonPkg)
+		}
+		provs := m.pkgProviders[canonPkg]
 		if provs == nil {
 			provs = []PluginProviderState{}
 		}
@@ -501,9 +645,22 @@ func (m *Manager) StatePlugins() []InstalledPluginState {
 		models := make([]string, 0)
 		accounts := make([]PluginAccountState, 0)
 		optMap := make(map[string]any)
-		for _, pp := range provs {
+		provsCopy := make([]PluginProviderState, len(provs))
+		copy(provsCopy, provs)
+		for i := range provsCopy {
+			pp := &provsCopy[i]
+			if len(cfg.Settings.PluginSelectedModels[pp.ID]) > 0 {
+				pp.SelectedModels = append([]string{}, cfg.Settings.PluginSelectedModels[pp.ID]...)
+			} else {
+				pp.SelectedModels = nil
+			}
+			pp.Authenticated = len(pp.Accounts) > 0
+			pp.AccountCount = len(pp.Accounts)
+			if pp.LastError == "" {
+				pp.LastError = pp.ListError
+			}
 			provIDs = append(provIDs, pp.ID)
-			for _, mod := range pp.Models {
+			for _, mod := range pp.ActiveModels() {
 				models = append(models, pp.ID+"/"+mod.ID)
 			}
 			for _, opt := range pp.Options {
@@ -518,18 +675,18 @@ func (m *Manager) StatePlugins() []InstalledPluginState {
 			}
 		}
 		out = append(out, InstalledPluginState{
-			Package:     ent.Package,
-			ID:          ent.Package,
+			Package:     canonPkg,
+			ID:          canonPkg,
 			Name:        name,
 			Installed:   true,
 			Enabled:     ent.Enabled,
-			Version:     InstalledVersion(m.store.DataDir(), ent.Package),
-			Error:       m.loadedErrors[ent.Package],
+			Version:     InstalledVersion(m.store.DataDir(), canonPkg),
+			Error:       m.loadedErrors[canonPkg],
 			ProviderIDs: provIDs,
 			Models:      models,
 			Options:     optMap,
 			Accounts:    accounts,
-			Providers:   provs,
+			Providers:   provsCopy,
 		})
 	}
 	return out
@@ -538,7 +695,7 @@ func (m *Manager) StatePlugins() []InstalledPluginState {
 // StartSignIn begins an API-key, keyless, or OAuth sign-in flow for a plugin provider.
 func (m *Manager) StartSignIn(ctx context.Context, req SignInStartRequest) (SignInSessionState, error) {
 	if req.ProviderID == "" && req.Package != "" {
-		pkg := PackageNameOf(req.Package)
+		pkg := CanonicalPluginPackage(PackageNameOf(req.Package))
 		m.mu.RLock()
 		if provs := m.pkgProviders[pkg]; len(provs) > 0 {
 			req.ProviderID = provs[0].ID
@@ -558,8 +715,18 @@ func (m *Manager) StartSignIn(ctx context.Context, req SignInStartRequest) (Sign
 		prov, hasProv := m.providers[req.ProviderID]
 		m.mu.RUnlock()
 		methodType := "api"
-		if hasProv && req.MethodIndex >= 0 && req.MethodIndex < len(prov.Methods) {
-			methodType = prov.Methods[req.MethodIndex].Type
+		if hasProv {
+			matched := false
+			for _, mm := range prov.Methods {
+				if mm.Index == req.MethodIndex {
+					methodType = mm.Type
+					matched = true
+					break
+				}
+			}
+			if !matched && req.MethodIndex >= 0 && req.MethodIndex < len(prov.Methods) {
+				methodType = prov.Methods[req.MethodIndex].Type
+			}
 		}
 		sid := store.NewID("signin")
 		if methodType == "api" || req.APIKey != "" {
@@ -749,7 +916,11 @@ func (m *Manager) enrichSignInState(st *SignInSessionState) {
 		st.Phase = "failed"
 	default:
 		switch {
-		case st.DeviceCode != "" || st.Method == "auto":
+		case st.DeviceCode != "":
+			st.Phase = "device"
+		case st.Method == "auto" && st.URL != "":
+			st.Phase = "open_auto"
+		case st.Method == "auto":
 			st.Phase = "device"
 		case st.Method == "code":
 			st.Phase = "prompt"
@@ -854,7 +1025,7 @@ func (m *Manager) HasModel(providerID, modelID string) bool {
 	if !ok {
 		return false
 	}
-	for _, mod := range p.Models {
+	for _, mod := range p.ActiveModels() {
 		if mod.ID == modelID {
 			return true
 		}
@@ -871,7 +1042,7 @@ func (m *Manager) FindProvidersForModel(modelID string) []string {
 	defer m.mu.RUnlock()
 	var out []string
 	for _, p := range m.providers {
-		for _, mod := range p.Models {
+		for _, mod := range p.ActiveModels() {
 			if mod.ID == modelID {
 				out = append(out, p.ID)
 				break
@@ -881,13 +1052,13 @@ func (m *Manager) FindProvidersForModel(modelID string) []string {
 	return out
 }
 
-// AllModels returns "<provider>/<model>" and raw model entries for /v1/models.
+// AllModels returns active "<provider>/<model>" entries for /v1/models.
 func (m *Manager) AllModels() []PluginModelInfo {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	var out []PluginModelInfo
 	for _, p := range m.providers {
-		for _, mod := range p.Models {
+		for _, mod := range p.ActiveModels() {
 			cp := mod
 			cp.ID = p.ID + "/" + mod.ID
 			out = append(out, cp)
@@ -915,6 +1086,21 @@ func (m *Manager) ModelInfo(providerID, modelID string) (PluginModelInfo, bool) 
 	return PluginModelInfo{ID: modelID, Protocol: p.Protocol}, true
 }
 
+func joinPluginBaseURL(baseURL, relPath string) string {
+	base := strings.TrimRight(baseURL, "/")
+	rel := relPath
+	if rel != "" && !strings.HasPrefix(rel, "/") {
+		rel = "/" + rel
+	}
+	if base == "" {
+		return rel
+	}
+	if (strings.HasSuffix(base, "/v1") || strings.HasSuffix(base, "/v2")) && strings.HasPrefix(rel, "/v1/") {
+		rel = strings.TrimPrefix(rel, "/v1")
+	}
+	return base + rel
+}
+
 // ExecuteRequest proxies an upstream completion request through a plugin provider (Bun or Embedded).
 func (m *Manager) ExecuteRequest(ctx context.Context, providerID, modelID string, stream bool, body []byte, headers map[string]string) (*http.Response, types.Protocol, error) {
 	minfo, _ := m.ModelInfo(providerID, modelID)
@@ -929,13 +1115,12 @@ func (m *Manager) ExecuteRequest(ctx context.Context, providerID, modelID string
 	relPath := translate.UpstreamPath(targetProto, apiModel, stream)
 
 	if m.runtimeMode == "bun" && m.bunHost != nil && m.bunHost.IsRunning() {
-		targetURL := relPath
-		if minfo.URL != "" {
-			base := strings.TrimRight(minfo.URL, "/")
-			if strings.HasSuffix(base, "/v1") && strings.HasPrefix(relPath, "/v1/") {
-				relPath = strings.TrimPrefix(relPath, "/v1")
-			}
-			targetURL = base + relPath
+		targetURL := joinPluginBaseURL(minfo.URL, relPath)
+		// Stream-only WorkBuddy /v2/chat/completions requires stream: true even if client asked for stream: false;
+		// gateway folds SSE back into a single JSON response cleanly.
+		sendBody := body
+		if !stream && strings.HasSuffix(targetURL, "/v2/chat/completions") {
+			sendBody = translate.ForceStreamJSON(sendBody, true)
 		}
 		m.mu.RLock()
 		prov := m.providers[providerID]
@@ -952,7 +1137,7 @@ func (m *Manager) ExecuteRequest(ctx context.Context, providerID, modelID string
 			"url":      targetURL,
 			"method":   http.MethodPost,
 			"headers":  headers,
-			"body":     base64.StdEncoding.EncodeToString(body),
+			"body":     base64.StdEncoding.EncodeToString(sendBody),
 		})
 		return resp, targetProto, err
 	}

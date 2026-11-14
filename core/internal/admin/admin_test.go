@@ -127,4 +127,53 @@ func TestAdminAPIAuthAndCRUD(t *testing.T) {
 	if stObj := loopRes["status"].(map[string]any); stObj["lanEnabled"] != false {
 		t.Fatalf("expected lanEnabled=false, got %+v", stObj)
 	}
+
+	// PATCH /admin/v1/settings updates requireAccessKey & forces redactEnabled=false
+	patchReq, _ := http.NewRequest(http.MethodPatch, baseURL+"/admin/v1/settings", bytes.NewBufferString(`{"requireAccessKey":true,"redactEnabled":true}`))
+	patchReq.Header.Set("Authorization", "Bearer secret-token-123")
+	patchReq.Header.Set("Content-Type", "application/json")
+	patchResp, err := http.DefaultClient.Do(patchReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer patchResp.Body.Close()
+	if patchResp.StatusCode != http.StatusOK {
+		t.Fatalf("PATCH /admin/v1/settings got %d", patchResp.StatusCode)
+	}
+	var patchOut map[string]any
+	_ = json.NewDecoder(patchResp.Body).Decode(&patchOut)
+	setObj := patchOut["settings"].(map[string]any)
+	if setObj["requireAccessKey"] != true || setObj["redactEnabled"] != false {
+		t.Fatalf("unexpected PATCH settings output: %+v", setObj)
+	}
+
+	// POST /admin/v1/plugins/models & POST /admin/v1/plugins/refresh
+	pmReq, _ := http.NewRequest(http.MethodPost, baseURL+"/admin/v1/plugins/models", bytes.NewBufferString(`{"pluginId":"@magpie-community/opencode-workbuddy-auth","providerId":"workbuddy","selectedModels":["glm-5.3"]}`))
+	pmReq.Header.Set("Authorization", "Bearer secret-token-123")
+	pmReq.Header.Set("Content-Type", "application/json")
+	pmResp, err := http.DefaultClient.Do(pmReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pmResp.Body.Close()
+	if pmResp.StatusCode != http.StatusOK {
+		t.Fatalf("POST /admin/v1/plugins/models got %d", pmResp.StatusCode)
+	}
+	var pmOut map[string]any
+	_ = json.NewDecoder(pmResp.Body).Decode(&pmOut)
+	if selMap, _ := pmOut["settings"].(map[string]any)["pluginSelectedModels"].(map[string]any); selMap["workbuddy"] == nil {
+		t.Fatalf("expected pluginSelectedModels.workbuddy persisted: %+v", pmOut["settings"])
+	}
+
+	prReq, _ := http.NewRequest(http.MethodPost, baseURL+"/admin/v1/plugins/refresh", bytes.NewBufferString(`{}`))
+	prReq.Header.Set("Authorization", "Bearer secret-token-123")
+	prReq.Header.Set("Content-Type", "application/json")
+	prResp, err := http.DefaultClient.Do(prReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer prResp.Body.Close()
+	if prResp.StatusCode != http.StatusOK {
+		t.Fatalf("POST /admin/v1/plugins/refresh got %d", prResp.StatusCode)
+	}
 }

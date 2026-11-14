@@ -110,6 +110,23 @@ func RewriteModelJSON(raw []byte, newModel string) []byte {
 	return out
 }
 
+// ForceStreamJSON sets the "stream" boolean in a raw JSON payload while keeping all other fields intact.
+func ForceStreamJSON(raw []byte, stream bool) []byte {
+	if len(raw) == 0 {
+		return raw
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return raw
+	}
+	m["stream"] = stream
+	out, err := json.Marshal(m)
+	if err != nil {
+		return raw
+	}
+	return out
+}
+
 // UpstreamPath returns the relative upstream endpoint path for a target protocol.
 func UpstreamPath(proto types.Protocol, model string, stream bool) string {
 	switch proto {

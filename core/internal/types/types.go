@@ -18,46 +18,52 @@ const (
 
 // Settings holds persisted gateway configuration.
 type Settings struct {
-	Port              int          `json:"port"`
-	LanEnabled        bool         `json:"lanEnabled"`
-	AllowLocalKeyless bool         `json:"allowLocalKeyless"`
-	AllowIps          []string     `json:"allowIps"`
-	CorsOrigins       []string     `json:"corsOrigins"`
-	RedactEnabled     bool         `json:"redactEnabled"`
-	RedactRestore     bool         `json:"redactRestore"`
-	RedactRules       []RedactRule `json:"redactRules"`
-	RedactAllow       []string     `json:"redactAllow"`
-	ChinaMirror       bool         `json:"chinaMirror"`
+	Port                 int                 `json:"port"`
+	LanEnabled           bool                `json:"lanEnabled"`
+	RequireAccessKey     bool                `json:"requireAccessKey"`
+	AllowLocalKeyless    bool                `json:"allowLocalKeyless"`
+	AllowIps             []string            `json:"allowIps"`
+	CorsOrigins          []string            `json:"corsOrigins"`
+	RedactEnabled        bool                `json:"redactEnabled"`
+	RedactRestore        bool                `json:"redactRestore"`
+	RedactRules          []RedactRule        `json:"redactRules"`
+	RedactAllow          []string            `json:"redactAllow"`
+	ChinaMirror          bool                `json:"chinaMirror"`
+	PluginSelectedModels map[string][]string `json:"pluginSelectedModels,omitempty"`
 }
 
 // DefaultSettings returns initial gateway defaults.
 func DefaultSettings() Settings {
 	return Settings{
-		Port:              18787,
-		LanEnabled:        false,
-		AllowLocalKeyless: true,
-		AllowIps:          []string{},
-		CorsOrigins:       []string{},
-		RedactEnabled:     false,
-		RedactRestore:     true,
-		RedactRules:       []RedactRule{},
-		RedactAllow:       []string{},
-		ChinaMirror:       true,
+		Port:                 18787,
+		LanEnabled:           false,
+		RequireAccessKey:     false,
+		AllowLocalKeyless:    true,
+		AllowIps:             []string{},
+		CorsOrigins:          []string{},
+		RedactEnabled:        false,
+		RedactRestore:        true,
+		RedactRules:          []RedactRule{},
+		RedactAllow:          []string{},
+		ChinaMirror:          true,
+		PluginSelectedModels: map[string][]string{},
 	}
 }
 
 // SettingsPatch represents partial updates to Settings.
 type SettingsPatch struct {
-	Port              *int          `json:"port,omitempty"`
-	LanEnabled        *bool         `json:"lanEnabled,omitempty"`
-	AllowLocalKeyless *bool         `json:"allowLocalKeyless,omitempty"`
-	AllowIps          *[]string     `json:"allowIps,omitempty"`
-	CorsOrigins       *[]string     `json:"corsOrigins,omitempty"`
-	RedactEnabled     *bool         `json:"redactEnabled,omitempty"`
-	RedactRestore     *bool         `json:"redactRestore,omitempty"`
-	RedactRules       *[]RedactRule `json:"redactRules,omitempty"`
-	RedactAllow       *[]string     `json:"redactAllow,omitempty"`
-	ChinaMirror       *bool         `json:"chinaMirror,omitempty"`
+	Port                 *int                 `json:"port,omitempty"`
+	LanEnabled           *bool                `json:"lanEnabled,omitempty"`
+	RequireAccessKey     *bool                `json:"requireAccessKey,omitempty"`
+	AllowLocalKeyless    *bool                `json:"allowLocalKeyless,omitempty"`
+	AllowIps             *[]string            `json:"allowIps,omitempty"`
+	CorsOrigins          *[]string            `json:"corsOrigins,omitempty"`
+	RedactEnabled        *bool                `json:"redactEnabled,omitempty"`
+	RedactRestore        *bool                `json:"redactRestore,omitempty"`
+	RedactRules          *[]RedactRule        `json:"redactRules,omitempty"`
+	RedactAllow          *[]string            `json:"redactAllow,omitempty"`
+	ChinaMirror          *bool                `json:"chinaMirror,omitempty"`
+	PluginSelectedModels *map[string][]string `json:"pluginSelectedModels,omitempty"`
 }
 
 // RedactRule is a user-defined regex redaction rule.
@@ -360,6 +366,7 @@ type GatewayStatus struct {
 	ListenAddr          string   `json:"listenAddr"`
 	Port                int      `json:"port"`
 	LanEnabled          bool     `json:"lanEnabled"`
+	RequireAccessKey    bool     `json:"requireAccessKey"`
 	AllowLocalKeyless   bool     `json:"allowLocalKeyless"`
 	LanUrls             []string `json:"lanUrls"`
 	LoopbackUrl         string   `json:"loopbackUrl"`

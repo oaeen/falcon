@@ -335,6 +335,147 @@ function protocolFromNpm(npm) {
   return "openai"
 }
 
+function buildStoredOAuth(r) {
+  const out = {
+    type: "oauth",
+    refresh: r.refresh ?? "",
+    access: r.access ?? "",
+    expires: r.expires ?? 0,
+  }
+  for (const [k, v] of Object.entries(r)) {
+    if (k === "type" || k === "refresh" || k === "access" || k === "expires" || v === undefined) continue
+    out[k] = v
+  }
+  return out
+}
+
+function buildStoredAPI(r, fallbackKey = "", fallbackMeta = undefined) {
+  const out = {
+    type: "api",
+    key: r.key ?? fallbackKey ?? "",
+  }
+  const meta = r.metadata ?? fallbackMeta
+  if (meta !== undefined) out.metadata = meta
+  for (const k of ["accountId", "email", "label", "uid", "domain", "enterpriseId", "source"]) {
+    if (r[k] !== undefined) out[k] = r[k]
+  }
+  return out
+}
+
+const wbRepairedPersonal = new Set()
+
+function wbEndpointFor(providerId, entry) {
+  if (providerId === "workbuddy-ai" && process.env.FALCON_WORKBUDDY_AI_ENDPOINT) {
+    return process.env.FALCON_WORKBUDDY_AI_ENDPOINT.replace(/\/+$/, "")
+  }
+  if (providerId === "workbuddy" && process.env.FALCON_WORKBUDDY_ENDPOINT) {
+    return process.env.FALCON_WORKBUDDY_ENDPOINT.replace(/\/+$/, "")
+  }
+  const defaultHost = providerId === "workbuddy-ai" ? "www.workbuddy.ai" : "copilot.tencent.com"
+  const d = typeof entry?.domain === "string" ? entry.domain.trim().toLowerCase() : ""
+  const ioa = d === "tencent.sso.copilot.tencent.com" || d === "tencent.sso.codebuddy.cn"
+  const cloudHosted =
+    /^[a-z0-9-]+\.sso\.copilot\.tencent\.com$/.test(d) ||
+    /^[a-z0-9-]+\.copilot\.qq\.com$/.test(d) ||
+    /^[a-z0-9-]+\.sso\.codebuddy\.cn$/.test(d)
+  return d && cloudHosted && !ioa ? `https://${d}` : `https://${defaultHost}`
+}
+
+async function repairWorkBuddyAuth({ force = false } = {}) {
+  const snapshot = readAuth()
+  for (const [key, entry] of Object.entries(snapshot)) {
+    const pid = providerOf(key)
+    if (pid !== "workbuddy" && pid !== "workbuddy-ai") continue
+    if (!entry || entry.type !== "oauth" || !entry.access) continue
+    const missingUID = !entry.uid
+    const missingEnt = !entry.enterpriseId
+    if (!missingUID && (!missingEnt || (!force && wbRepairedPersonal.has(key)))) continue
+
+    const base = wbEndpointFor(pid, entry)
+    const defaultDomain = pid === "workbuddy-ai" ? "www.workbuddy.ai" : "copilot.tencent.com"
+    try {
+      const headers = {
+        Authorization: `Bearer ${entry.access}`,
+        "X-Domain": entry.domain || defaultDomain,
+      }
+      if (entry.uid) headers["X-User-Id"] = String(entry.uid)
+      if (entry.enterpriseId) {
+        headers["X-Enterprise-Id"] = String(entry.enterpriseId)
+        headers["X-Tenant-Id"] = String(entry.enterpriseId)
+      }
+      const res = await fetch(`${base}/v2/plugin/accounts`, {
+        method: "GET",
+        headers,
+        signal: AbortSignal.timeout(6000),
+      })
+      if (!res.ok) continue
+      const json = await res.json().catch(() => null)
+      const rawList = json?.data?.accounts ?? json?.accounts ?? []
+      if (!Array.isArray(rawList) || rawList.length === 0) continue
+
+      const all = rawList.filter((x) => x && (x.uid || x.enterpriseId))
+      if (all.length === 0) continue
+
+      let pick = null
+      if (entry.uid && entry.enterpriseId) {
+        pick = all.find((x) => x.uid === entry.uid && String(x.enterpriseId ?? "").trim() === String(entry.enterpriseId).trim())
+      }
+      if (!pick && entry.uid) {
+        const sameUID = all.filter((x) => x.uid === entry.uid)
+        const withLast = sameUID.filter((x) => x.lastLogin)
+        const withEnt = sameUID.filter((x) => typeof x.enterpriseId === "string" && x.enterpriseId.trim())
+        pick = withLast[0] ?? (withEnt.length === 1 ? withEnt[0] : sameUID[0])
+      }
+      if (!pick) {
+        const last = all.filter((x) => x.lastLogin)
+        pick = last.length === 1 ? last[0] : all[0]
+      }
+      if (!pick) continue
+
+      const uid = typeof pick.uid === "string" ? pick.uid.trim() : ""
+      const ent = typeof pick.enterpriseId === "string" ? pick.enterpriseId.trim() : ""
+      const person = pick.nickname || pick.phoneNumber || uid || ""
+      const label = ent
+        ? (person ? `${person} · ${pick.enterpriseName || `enterprise ${ent.slice(-6)}`}` : pick.enterpriseName || `enterprise ${ent.slice(-6)}`)
+        : person
+
+      if (uid && !ent) wbRepairedPersonal.add(key)
+
+      let updated = false
+      await changeAuth((allAuth) => {
+        const cur = allAuth[key]
+        if (!cur || cur.type !== "oauth") return false
+        const next = { ...cur }
+        if (!next.uid && uid) {
+          next.uid = uid
+          updated = true
+        }
+        if (!next.enterpriseId && ent) {
+          next.enterpriseId = ent
+          updated = true
+        }
+        if (!next.accountId && label) {
+          next.accountId = label
+          updated = true
+        }
+        if (!next.domain && pick.domain) {
+          next.domain = pick.domain
+          updated = true
+        }
+        if (!updated) return false
+        allAuth[key] = next
+        return true
+      })
+      if (updated) {
+        loaders.delete(key)
+        send({ event: "auth", provider: pid, account: key })
+      }
+    } catch {
+      // Never invalidate stored tokens if network repair fails
+    }
+  }
+}
+
 async function buildProviderInfo(id, key) {
   const cfg = config.provider?.[id] ?? {}
   const out = {
@@ -386,6 +527,7 @@ async function buildProviderInfo(id, key) {
 
 async function listProviders() {
   const stored = readAuth()
+  const isMobile = process.env.FALCON_MOBILE === "1"
   const out = []
   for (const [id, entry] of auths().entries()) {
     const keys = accountsOf(stored, id)
@@ -393,17 +535,41 @@ async function listProviders() {
     const pInfo = await buildProviderInfo(id, primaryKey)
     const models = Object.values(pInfo.models ?? {})
       .filter((m) => m.status !== "deprecated")
-      .map((m) => ({
-        id: m.id,
-        name: m.name ?? m.id,
-        npm: m.api?.npm ?? pInfo.npm ?? "",
-        protocol: protocolFromNpm(m.api?.npm ?? pInfo.npm ?? ""),
-        url: m.api?.url ?? "",
-        apiId: m.api?.id ?? m.id,
-        context: m.limit?.context ?? 0,
-        output: m.limit?.output ?? 0,
-        free: m.free === true,
+      .map((m) => {
+        const ctxLim = m.limit?.context ?? 0
+        const outLim = m.limit?.output ?? 0
+        const modalities = []
+        if (m.capabilities?.input?.text !== false) modalities.push("text")
+        if (m.capabilities?.input?.image) modalities.push("image")
+        if (m.capabilities?.input?.pdf) modalities.push("pdf")
+        return {
+          id: m.id,
+          name: m.name ?? m.id,
+          npm: m.api?.npm ?? pInfo.npm ?? "",
+          protocol: protocolFromNpm(m.api?.npm ?? pInfo.npm ?? ""),
+          url: m.api?.url ?? "",
+          apiId: m.api?.id ?? m.id,
+          context: ctxLim,
+          output: outLim,
+          limit: { context: ctxLim, output: outLim },
+          modalities,
+          reasoning: Boolean(m.capabilities?.reasoning ?? m.reasoning),
+          toolCall: m.capabilities?.toolcall !== false,
+          free: m.free === true,
+        }
+      })
+    const supportsModels = hooks.some(
+      (h) => h.hooks.provider?.id === id && typeof h.hooks.provider?.models === "function",
+    )
+    const methods = (entry.auth.methods ?? [])
+      .map((m, index) => ({
+        index,
+        type: m.type,
+        label: m.label ?? m.type,
+        keyless: m.type === "api" && m.keyless === true,
+        placeholder: typeof m.placeholder === "string" ? m.placeholder : "",
       }))
+      .filter((m) => !isMobile || !/desktop/i.test(m.label))
     out.push({
       id,
       spec: entry.spec,
@@ -411,27 +577,31 @@ async function listProviders() {
       npm: pInfo.npm ?? "",
       protocol: protocolFromNpm(pInfo.npm ?? ""),
       api: pInfo.api ?? "",
-      methods: (entry.auth.methods ?? []).map((m, index) => ({
-        index,
-        type: m.type,
-        label: m.label ?? m.type,
-        keyless: m.type === "api" && m.keyless === true,
-        placeholder: typeof m.placeholder === "string" ? m.placeholder : "",
-      })),
+      methods,
       supportsUsage: typeof entry.auth.usage === "function",
       supportsCheckin: typeof entry.auth.checkin === "function",
+      supportsModels,
       options: Array.isArray(entry.auth.options) ? entry.auth.options : [],
       accounts: keys.map((k) => ({
         id: k,
         providerId: id,
         type: stored[k]?.type ?? "api",
-        label: stored[k]?.email ?? stored[k]?.accountId ?? k,
+        label: stored[k]?.accountId || stored[k]?.email || k,
+        email: stored[k]?.email ?? "",
+        uid: stored[k]?.uid ?? "",
+        enterpriseId: stored[k]?.enterpriseId ?? "",
         status: "active",
       })),
       models,
       listError: pInfo.listError ?? "",
+      lastError: pInfo.listError ?? "",
     })
   }
+  out.sort((a, b) => {
+    if (a.id === "workbuddy" && b.id === "workbuddy-ai") return -1
+    if (a.id === "workbuddy-ai" && b.id === "workbuddy") return 1
+    return 0
+  })
   return out
 }
 
@@ -510,11 +680,37 @@ async function doFetch(id, record, params) {
     for (const [k, v] of Object.entries(opts.headers ?? {})) h.set(k, String(v))
     for (const [k, v] of Object.entries(headers ?? {})) h.set(k, String(v))
 
+    const hookHeaders = {}
+    for (const hk of hooks) {
+      const fn = hk.hooks?.["chat.headers"]
+      if (typeof fn === "function") {
+        try {
+          await scopeStorage.run({ provider, key }, () =>
+            fn(
+              {
+                sessionID: h.get("x-falcon-session") || h.get("x-session-id") || `falcon-${provider}`,
+                agent: "falcon",
+                model: { id: model || "", providerID: provider },
+                provider: { info: { id: provider } },
+                message: {},
+              },
+              { headers: hookHeaders },
+            ),
+          )
+        } catch (e) {
+          toErr("chat.headers hook failed:", e?.message ?? e)
+        }
+      }
+    }
+    for (const [k, v] of Object.entries(hookHeaders)) {
+      if (v != null && !h.has(k)) h.set(k, String(v))
+    }
+
     const base = String(opts.baseURL || "").replace(/\/+$/, "")
     let targetUrl = url
     if (!/^https?:\/\//i.test(targetUrl) && base) {
       const rel = targetUrl.startsWith("/") ? targetUrl : `/${targetUrl}`
-      targetUrl = base.endsWith("/v1") && rel.startsWith("/v1/") ? base + rel.slice(3) : base + rel
+      targetUrl = /\/v\d+$/.test(base) && rel.startsWith("/v1/") ? base + rel.slice(3) : base + rel
     }
 
     let decodedBody = undefined
@@ -569,9 +765,15 @@ const handlers = {
     userConfig = p.config ?? {}
     chosenOptions = p.options ?? {}
     await loadPlugins(p.plugins ?? [])
+    await repairWorkBuddyAuth({ force: true })
     return { plugins: loaded }
   },
-  providers: () => listProviders(),
+  async providers(p) {
+    if (p?.repair) {
+      await repairWorkBuddyAuth({ force: Boolean(p?.force) })
+    }
+    return listProviders()
+  },
   async setProviderOptions(p) {
     chosenOptions = p?.options ?? {}
     loaders.clear()
@@ -592,9 +794,9 @@ const handlers = {
     const targetProvider = r.provider ?? p.provider
     const keyName = targetProvider !== p.provider ? freshKey(targetProvider) : at
     if ("refresh" in r) {
-      await setAuth(keyName, { type: "oauth", refresh: r.refresh, access: r.access, expires: r.expires })
+      await setAuth(keyName, buildStoredOAuth(r))
     } else {
-      await setAuth(keyName, { type: "api", key: r.key ?? p.key ?? "", metadata: r.metadata })
+      await setAuth(keyName, buildStoredAPI(r, p.key ?? "", r.metadata))
     }
     return { ok: true, provider: targetProvider, account: keyName }
   },
@@ -631,9 +833,9 @@ const handlers = {
     const targetProvider = r.provider ?? s.provider
     const keyName = targetProvider !== s.provider ? freshKey(targetProvider) : s.key
     if ("refresh" in r) {
-      await setAuth(keyName, { type: "oauth", refresh: r.refresh, access: r.access, expires: r.expires })
+      await setAuth(keyName, buildStoredOAuth(r))
     } else {
-      await setAuth(keyName, { type: "api", key: r.key ?? "" })
+      await setAuth(keyName, buildStoredAPI(r, ""))
     }
     return { ok: true, provider: targetProvider, account: keyName }
   },

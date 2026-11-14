@@ -733,3 +733,178 @@ func (us *UsageSniffer) Feed(chunk []byte) {
 	us.buf.Reset()
 	us.buf.Write(data)
 }
+
+type collectedTool struct {
+	index int
+	id    string
+	name  string
+	args  strings.Builder
+}
+
+// StreamCollector incrementally accumulates upstream stream events into a CanonicalResponse.
+type StreamCollector struct {
+	tr            *StreamTranslator
+	fallbackModel string
+	id            string
+	model         string
+	finishReason  string
+	usage         Usage
+	text          strings.Builder
+	thinking      strings.Builder
+	tools         map[int]*collectedTool
+	toolOrder     []int
+	seenEvents    int
+}
+
+// NewStreamCollector creates a collector that parses fromProto SSE/NDJSON into CanonicalResponse.
+func NewStreamCollector(fromProto types.Protocol, fallbackModel string) *StreamCollector {
+	return &StreamCollector{
+		tr:            NewStreamTranslator(fromProto, types.ProtocolOpenAI, fallbackModel),
+		fallbackModel: fallbackModel,
+		tools:         make(map[int]*collectedTool),
+	}
+}
+
+func (sc *StreamCollector) applyEvent(ev StreamEvent) {
+	sc.seenEvents++
+	if ev.ID != "" && sc.id == "" {
+		sc.id = ev.ID
+	}
+	if ev.Model != "" {
+		sc.model = ev.Model
+	}
+	if ev.Usage != nil {
+		if ev.Usage.InputTokens > 0 {
+			sc.usage.InputTokens = ev.Usage.InputTokens
+		}
+		if ev.Usage.OutputTokens > 0 {
+			sc.usage.OutputTokens = ev.Usage.OutputTokens
+		}
+		if ev.Usage.TotalTokens > 0 {
+			sc.usage.TotalTokens = ev.Usage.TotalTokens
+		} else {
+			sc.usage.TotalTokens = sc.usage.InputTokens + sc.usage.OutputTokens
+		}
+	}
+	switch ev.Kind {
+	case EventTextDelta:
+		sc.text.WriteString(ev.Text)
+	case EventThinkingDelta:
+		sc.thinking.WriteString(ev.Text)
+	case EventToolStart:
+		t := sc.ensureTool(ev.ToolIndex)
+		if ev.ToolID != "" {
+			t.id = ev.ToolID
+		}
+		if ev.ToolName != "" {
+			t.name = ev.ToolName
+		}
+	case EventToolDelta:
+		t := sc.ensureTool(ev.ToolIndex)
+		if ev.ToolArgs != "" {
+			t.args.WriteString(ev.ToolArgs)
+		}
+	case EventFinish:
+		if ev.FinishReason != "" && (sc.finishReason == "" || sc.finishReason == "stop") {
+			sc.finishReason = ev.FinishReason
+		}
+	}
+}
+
+func (sc *StreamCollector) ensureTool(idx int) *collectedTool {
+	if t, ok := sc.tools[idx]; ok {
+		return t
+	}
+	t := &collectedTool{index: idx}
+	sc.tools[idx] = t
+	sc.toolOrder = append(sc.toolOrder, idx)
+	return t
+}
+
+// Feed consumes raw stream bytes incrementally.
+func (sc *StreamCollector) Feed(chunk []byte) {
+	sc.tr.buf.Write(chunk)
+	data := sc.tr.buf.Bytes()
+	for {
+		idx := bytes.IndexByte(data, '\n')
+		if idx < 0 {
+			break
+		}
+		line := strings.TrimRight(string(data[:idx+1]), "\r\n")
+		data = data[idx+1:]
+		for _, ev := range sc.tr.parseLine(line) {
+			sc.applyEvent(ev)
+		}
+	}
+	sc.tr.buf.Reset()
+	sc.tr.buf.Write(data)
+}
+
+// Result finalizes any buffered tail and builds the CanonicalResponse.
+func (sc *StreamCollector) Result() (*CanonicalResponse, error) {
+	if sc.tr.buf.Len() > 0 {
+		line := strings.TrimRight(sc.tr.buf.String(), "\r\n")
+		sc.tr.buf.Reset()
+		for _, ev := range sc.tr.parseLine(line) {
+			sc.applyEvent(ev)
+		}
+	}
+	if sc.seenEvents == 0 {
+		return nil, fmt.Errorf("no stream events parsed")
+	}
+
+	model := sc.model
+	if model == "" {
+		model = sc.fallbackModel
+	}
+	parts := make([]ContentPart, 0, 2+len(sc.toolOrder))
+	if sc.thinking.Len() > 0 {
+		parts = append(parts, ContentPart{Type: "thinking", Text: sc.thinking.String()})
+	}
+	if sc.text.Len() > 0 || len(sc.toolOrder) == 0 {
+		parts = append(parts, ContentPart{Type: "text", Text: sc.text.String()})
+	}
+	for _, idx := range sc.toolOrder {
+		t := sc.tools[idx]
+		rawArgs := strings.TrimSpace(t.args.String())
+		var parsed any
+		if rawArgs != "" {
+			if err := json.Unmarshal([]byte(rawArgs), &parsed); err != nil {
+				parsed = map[string]any{"_raw": rawArgs}
+			}
+		} else {
+			parsed = map[string]any{}
+		}
+		parts = append(parts, ContentPart{
+			Type:      "tool_use",
+			ToolID:    t.id,
+			ToolName:  t.name,
+			ToolInput: parsed,
+		})
+	}
+	finish := sc.finishReason
+	if finish == "" {
+		if len(sc.toolOrder) > 0 {
+			finish = "tool_calls"
+		} else {
+			finish = "stop"
+		}
+	}
+	if sc.usage.TotalTokens == 0 {
+		sc.usage.TotalTokens = sc.usage.InputTokens + sc.usage.OutputTokens
+	}
+	return &CanonicalResponse{
+		ID:           sc.id,
+		Model:        model,
+		Parts:        parts,
+		FinishReason: finish,
+		Usage:        sc.usage,
+	}, nil
+}
+
+// CollectStreamToCanonical folds an entire SSE/NDJSON response stream into a single CanonicalResponse.
+func CollectStreamToCanonical(fromProto types.Protocol, streamBytes []byte, fallbackModel string) (*CanonicalResponse, error) {
+	sc := NewStreamCollector(fromProto, fallbackModel)
+	sc.Feed(streamBytes)
+	return sc.Result()
+}

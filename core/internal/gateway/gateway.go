@@ -17,12 +17,18 @@ import (
 	"github.com/falcon-gateway/falcon/core/internal/access"
 	"github.com/falcon-gateway/falcon/core/internal/plugin"
 	"github.com/falcon-gateway/falcon/core/internal/provider"
-	"github.com/falcon-gateway/falcon/core/internal/redact"
 	"github.com/falcon-gateway/falcon/core/internal/router"
 	"github.com/falcon-gateway/falcon/core/internal/store"
 	"github.com/falcon-gateway/falcon/core/internal/translate"
 	"github.com/falcon-gateway/falcon/core/internal/types"
 )
+
+var streamBufPool = sync.Pool{
+	New: func() any {
+		b := make([]byte, 32*1024)
+		return &b
+	},
+}
 
 // Server implements the multi-protocol AI gateway HTTP server with hot Relisten().
 type Server struct {
@@ -211,7 +217,7 @@ func (s *Server) Status() types.GatewayStatus {
 				if len(pp.Accounts) > 0 || pp.ID == "opencode-zen-free" {
 					activeProviders++
 				}
-				modelCount += len(pp.Models)
+				modelCount += len(pp.ActiveModels())
 			}
 		}
 	}
@@ -226,6 +232,7 @@ func (s *Server) Status() types.GatewayStatus {
 		ListenAddr:          listenAddr,
 		Port:                port,
 		LanEnabled:          cfg.Settings.LanEnabled,
+		RequireAccessKey:    cfg.Settings.RequireAccessKey,
 		AllowLocalKeyless:   cfg.Settings.AllowLocalKeyless,
 		LanUrls:             lanUrls,
 		LoopbackUrl:         fmt.Sprintf("http://127.0.0.1:%d", port),
@@ -510,14 +517,10 @@ func (s *Server) handleCompletion(w http.ResponseWriter, r *http.Request, id acc
 	}
 	targets := s.router.Resolve(cfg, pluginLookup, modelHint)
 	if len(targets) == 0 {
-		s.recordLog(id, clientProto, r.URL.Path, modelHint, "", "", http.StatusNotFound, 0, time.Since(startTime).Milliseconds(), translate.Usage{}, nil, nil, "No enabled provider or route for model: "+modelHint)
+		s.recordLog(id, clientProto, r.URL.Path, modelHint, "", "", http.StatusNotFound, 0, time.Since(startTime).Milliseconds(), translate.Usage{}, nil, "No enabled provider or route for model: "+modelHint)
 		access.WriteError(w, http.StatusNotFound, "No enabled provider or route for model: "+modelHint)
 		return
 	}
-
-	// Outbound redaction
-	redactSess := redact.NewSession(settings)
-	maskedBody := redactSess.MaskJSON(rawBody)
 
 	var canonReq *translate.CanonicalRequest
 	var attempts []types.AttemptLog
@@ -526,7 +529,7 @@ func (s *Server) handleCompletion(w http.ResponseWriter, r *http.Request, id acc
 
 	for _, target := range targets {
 		if target.IsPlugin {
-			if err := s.tryPluginTarget(w, r, id, settings, clientProto, modelHint, target, maskedBody, rawBody, streamRequested, startTime, redactSess, &canonReq, &attempts, &lastStatus, &lastErr); err == nil {
+			if err := s.tryPluginTarget(w, r, id, settings, clientProto, modelHint, target, rawBody, streamRequested, startTime, &canonReq, &attempts, &lastStatus, &lastErr); err == nil {
 				return
 			}
 			continue
@@ -536,7 +539,7 @@ func (s *Server) handleCompletion(w http.ResponseWriter, r *http.Request, id acc
 		if !ok || !prov.Enabled {
 			continue
 		}
-		if err := s.tryProviderTarget(w, r, id, settings, clientProto, modelHint, target, prov, maskedBody, rawBody, streamRequested, startTime, redactSess, &canonReq, &attempts, &lastStatus, &lastErr); err == nil {
+		if err := s.tryProviderTarget(w, r, id, settings, clientProto, modelHint, target, prov, rawBody, streamRequested, startTime, &canonReq, &attempts, &lastStatus, &lastErr); err == nil {
 			return
 		}
 	}
@@ -547,16 +550,16 @@ func (s *Server) handleCompletion(w http.ResponseWriter, r *http.Request, id acc
 	if lastErr == "" {
 		lastErr = "All upstream targets failed"
 	}
-	s.recordLog(id, clientProto, r.URL.Path, modelHint, "", "", lastStatus, 0, time.Since(startTime).Milliseconds(), translate.Usage{}, redactSess, attempts, lastErr)
+	s.recordLog(id, clientProto, r.URL.Path, modelHint, "", "", lastStatus, 0, time.Since(startTime).Milliseconds(), translate.Usage{}, attempts, lastErr)
 	access.WriteError(w, lastStatus, lastErr)
 }
 
-func (s *Server) buildUpstreamBody(clientProto, targetProto types.Protocol, targetModel string, streamRequested bool, maskedBody []byte, canonCache **translate.CanonicalRequest) ([]byte, error) {
+func (s *Server) buildUpstreamBody(clientProto, targetProto types.Protocol, targetModel string, streamRequested bool, body []byte, canonCache **translate.CanonicalRequest) ([]byte, error) {
 	if clientProto == targetProto {
-		return translate.RewriteModelJSON(maskedBody, targetModel), nil
+		return translate.RewriteModelJSON(body, targetModel), nil
 	}
 	if *canonCache == nil {
-		c, err := translate.DecodeRequest(clientProto, targetModel, maskedBody)
+		c, err := translate.DecodeRequest(clientProto, targetModel, body)
 		if err != nil {
 			return nil, err
 		}
@@ -578,17 +581,15 @@ func (s *Server) tryProviderTarget(
 	requestedModel string,
 	target router.Target,
 	prov types.Provider,
-	maskedBody []byte,
-	_ []byte,
+	rawBody []byte,
 	streamRequested bool,
 	startTime time.Time,
-	redactSess *redact.Session,
 	canonCache **translate.CanonicalRequest,
 	attempts *[]types.AttemptLog,
 	lastStatus *int,
 	lastErr *string,
 ) error {
-	upBody, err := s.buildUpstreamBody(clientProto, prov.Protocol, target.ModelID, streamRequested, maskedBody, canonCache)
+	upBody, err := s.buildUpstreamBody(clientProto, prov.Protocol, target.ModelID, streamRequested, rawBody, canonCache)
 	if err != nil {
 		*lastStatus = http.StatusBadRequest
 		*lastErr = err.Error()
@@ -661,7 +662,7 @@ func (s *Server) tryProviderTarget(
 			errBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
 			resp.Body.Close()
 			*attempts = append(*attempts, types.AttemptLog{Target: target.Raw, StatusCode: resp.StatusCode, LatencyMs: lat, Error: string(errBytes)})
-			s.recordLog(id, clientProto, r.URL.Path, requestedModel, target.ProviderID, target.ModelID, resp.StatusCode, lat, time.Since(startTime).Milliseconds(), translate.Usage{}, redactSess, *attempts, string(errBytes))
+			s.recordLog(id, clientProto, r.URL.Path, requestedModel, target.ProviderID, target.ModelID, resp.StatusCode, lat, time.Since(startTime).Milliseconds(), translate.Usage{}, *attempts, string(errBytes))
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(resp.StatusCode)
 			_, _ = w.Write(errBytes)
@@ -669,7 +670,7 @@ func (s *Server) tryProviderTarget(
 		}
 
 		*attempts = append(*attempts, types.AttemptLog{Target: target.Raw, StatusCode: resp.StatusCode, LatencyMs: lat})
-		s.relaySuccessResponse(w, r, id, settings, clientProto, prov.Protocol, requestedModel, target, resp, streamRequested, startTime, redactSess, *attempts)
+		s.relaySuccessResponse(w, r, id, settings, clientProto, prov.Protocol, requestedModel, target, resp, streamRequested, startTime, *attempts)
 		return nil
 	}
 
@@ -684,11 +685,9 @@ func (s *Server) tryPluginTarget(
 	clientProto types.Protocol,
 	requestedModel string,
 	target router.Target,
-	maskedBody []byte,
-	_ []byte,
+	rawBody []byte,
 	streamRequested bool,
 	startTime time.Time,
-	redactSess *redact.Session,
 	canonCache **translate.CanonicalRequest,
 	attempts *[]types.AttemptLog,
 	lastStatus *int,
@@ -707,19 +706,27 @@ func (s *Server) tryPluginTarget(
 		apiModel = target.ModelID
 	}
 
-	upBody, err := s.buildUpstreamBody(clientProto, targetProto, apiModel, streamRequested, maskedBody, canonCache)
+	// Stream-only WorkBuddy /v2 chat completions endpoints always require stream: true upstream;
+	// relaySuccessResponse folds the SSE stream back into JSON when streamRequested is false.
+	streamOnlyTarget := minfo.URL != "" && strings.HasSuffix(strings.TrimRight(minfo.URL, "/"), "/v2") && targetProto == types.ProtocolOpenAI
+	upStream := streamRequested || streamOnlyTarget
+
+	upBody, err := s.buildUpstreamBody(clientProto, targetProto, apiModel, upStream, rawBody, canonCache)
 	if err != nil {
 		*lastStatus = http.StatusBadRequest
 		*lastErr = err.Error()
 		return err
 	}
+	if upStream && !streamRequested {
+		upBody = translate.ForceStreamJSON(upBody, true)
+	}
 
 	reqStart := time.Now()
 	hdrs := map[string]string{"content-type": "application/json"}
-	if streamRequested {
+	if upStream {
 		hdrs["accept"] = "text/event-stream"
 	}
-	resp, actualProto, err := s.plugins.ExecuteRequest(r.Context(), target.ProviderID, target.ModelID, streamRequested, upBody, hdrs)
+	resp, actualProto, err := s.plugins.ExecuteRequest(r.Context(), target.ProviderID, target.ModelID, upStream, upBody, hdrs)
 	lat := time.Since(reqStart).Milliseconds()
 	if err != nil {
 		*attempts = append(*attempts, types.AttemptLog{Target: target.Raw, StatusCode: 0, LatencyMs: lat, Error: err.Error()})
@@ -741,7 +748,7 @@ func (s *Server) tryPluginTarget(
 		errBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
 		resp.Body.Close()
 		*attempts = append(*attempts, types.AttemptLog{Target: target.Raw, StatusCode: resp.StatusCode, LatencyMs: lat, Error: string(errBytes)})
-		s.recordLog(id, clientProto, r.URL.Path, requestedModel, target.ProviderID, target.ModelID, resp.StatusCode, lat, time.Since(startTime).Milliseconds(), translate.Usage{}, redactSess, *attempts, string(errBytes))
+		s.recordLog(id, clientProto, r.URL.Path, requestedModel, target.ProviderID, target.ModelID, resp.StatusCode, lat, time.Since(startTime).Milliseconds(), translate.Usage{}, *attempts, string(errBytes))
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(resp.StatusCode)
 		_, _ = w.Write(errBytes)
@@ -749,7 +756,7 @@ func (s *Server) tryPluginTarget(
 	}
 
 	*attempts = append(*attempts, types.AttemptLog{Target: target.Raw, StatusCode: resp.StatusCode, LatencyMs: lat})
-	s.relaySuccessResponse(w, r, id, settings, clientProto, actualProto, requestedModel, target, resp, streamRequested, startTime, redactSess, *attempts)
+	s.relaySuccessResponse(w, r, id, settings, clientProto, actualProto, requestedModel, target, resp, streamRequested, startTime, *attempts)
 	return nil
 }
 
@@ -765,15 +772,14 @@ func (s *Server) relaySuccessResponse(
 	resp *http.Response,
 	streamRequested bool,
 	startTime time.Time,
-	redactSess *redact.Session,
 	attempts []types.AttemptLog,
 ) {
 	defer resp.Body.Close()
 
-	ct := resp.Header.Get("Content-Type")
-	isStream := streamRequested || strings.Contains(strings.ToLower(ct), "text/event-stream") || strings.Contains(strings.ToLower(ct), "ndjson")
+	ct := strings.ToLower(resp.Header.Get("Content-Type"))
+	upstreamStream := strings.Contains(ct, "text/event-stream") || strings.Contains(ct, "ndjson")
 
-	if !isStream {
+	if !streamRequested {
 		rawResp, err := io.ReadAll(io.LimitReader(resp.Body, 16<<20))
 		lat := time.Since(startTime).Milliseconds()
 		if err != nil {
@@ -782,29 +788,38 @@ func (s *Server) relaySuccessResponse(
 		}
 		var outBytes []byte
 		var usage translate.Usage
-		if clientProto == targetProto {
-			outBytes = rawResp
-			usage = translate.ExtractUsageFromJSON(targetProto, rawResp)
-		} else {
-			canon, derr := translate.DecodeResponse(targetProto, rawResp)
-			if derr != nil {
-				outBytes = rawResp
-			} else {
+		if upstreamStream || bytes.HasPrefix(bytes.TrimSpace(rawResp), []byte("data:")) || bytes.HasPrefix(bytes.TrimSpace(rawResp), []byte("event:")) {
+			canon, cerr := translate.CollectStreamToCanonical(targetProto, rawResp, requestedModel)
+			if cerr == nil {
 				canon.Model = requestedModel
 				usage = canon.Usage
-				enc, eerr := translate.EncodeResponse(clientProto, canon)
-				if eerr != nil {
-					outBytes = rawResp
-				} else {
+				if enc, eerr := translate.EncodeResponse(clientProto, canon); eerr == nil {
 					outBytes = enc
 				}
 			}
 		}
-		if settings.RedactRestore && redactSess.TotalHits() > 0 {
-			outBytes = redactSess.RestoreJSON(outBytes)
+		if len(outBytes) == 0 {
+			if clientProto == targetProto {
+				outBytes = rawResp
+				usage = translate.ExtractUsageFromJSON(targetProto, rawResp)
+			} else {
+				canon, derr := translate.DecodeResponse(targetProto, rawResp)
+				if derr != nil {
+					outBytes = rawResp
+				} else {
+					canon.Model = requestedModel
+					usage = canon.Usage
+					enc, eerr := translate.EncodeResponse(clientProto, canon)
+					if eerr != nil {
+						outBytes = rawResp
+					} else {
+						outBytes = enc
+					}
+				}
+			}
 		}
 		s.router.RecordTTFT(target.Raw, lat)
-		s.recordLog(id, clientProto, r.URL.Path, requestedModel, target.ProviderID, target.ModelID, resp.StatusCode, lat, lat, usage, redactSess, attempts, "")
+		s.recordLog(id, clientProto, r.URL.Path, requestedModel, target.ProviderID, target.ModelID, resp.StatusCode, lat, lat, usage, attempts, "")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(resp.StatusCode)
 		_, _ = w.Write(outBytes)
@@ -830,13 +845,13 @@ func (s *Server) relaySuccessResponse(
 	} else {
 		sniffer = translate.NewUsageSniffer(targetProto)
 	}
-	var restorer *redact.StreamRestorer
-	if settings.RedactRestore && redactSess.TotalHits() > 0 {
-		restorer = redact.NewStreamRestorer(redactSess)
-	}
+
+	bufPtr := streamBufPool.Get().(*[]byte)
+	buf := *bufPtr
+	defer streamBufPool.Put(bufPtr)
 
 	var ttftMs int64
-	buf := make([]byte, 8192)
+	lastFlush := time.Now()
 	for {
 		n, readErr := resp.Body.Read(buf)
 		if n > 0 {
@@ -846,17 +861,15 @@ func (s *Server) relaySuccessResponse(
 			} else if sniffer != nil {
 				sniffer.Feed(chunk)
 			}
-			if restorer != nil && len(chunk) > 0 {
-				chunk = restorer.ProcessChunk(chunk)
-			}
 			if len(chunk) > 0 {
 				if ttftMs == 0 {
 					ttftMs = max(1, time.Since(startTime).Milliseconds())
 					s.router.RecordTTFT(target.Raw, ttftMs)
 				}
 				_, _ = w.Write(chunk)
-				if flusher != nil {
+				if flusher != nil && (bytes.IndexByte(chunk, '\n') >= 0 || time.Since(lastFlush) >= 15*time.Millisecond || readErr != nil) {
 					flusher.Flush()
+					lastFlush = time.Now()
 				}
 			}
 		}
@@ -866,16 +879,7 @@ func (s *Server) relaySuccessResponse(
 	}
 
 	if translator != nil {
-		tail := translator.Flush()
-		if restorer != nil && len(tail) > 0 {
-			tail = restorer.ProcessChunk(tail)
-		}
-		if len(tail) > 0 {
-			_, _ = w.Write(tail)
-		}
-	}
-	if restorer != nil {
-		if tail := restorer.Flush(); len(tail) > 0 {
+		if tail := translator.Flush(); len(tail) > 0 {
 			_, _ = w.Write(tail)
 		}
 	}
@@ -893,7 +897,7 @@ func (s *Server) relaySuccessResponse(
 	if ttftMs == 0 {
 		ttftMs = totalLat
 	}
-	s.recordLog(id, clientProto, r.URL.Path, requestedModel, target.ProviderID, target.ModelID, resp.StatusCode, ttftMs, totalLat, usage, redactSess, attempts, "")
+	s.recordLog(id, clientProto, r.URL.Path, requestedModel, target.ProviderID, target.ModelID, resp.StatusCode, ttftMs, totalLat, usage, attempts, "")
 }
 
 func (s *Server) recordLog(
@@ -907,16 +911,9 @@ func (s *Server) recordLog(
 	ttftMs int64,
 	latMs int64,
 	usage translate.Usage,
-	redactSess *redact.Session,
 	attempts []types.AttemptLog,
 	errMsg string,
 ) {
-	var hitsByKind map[string]int
-	redactedCount := 0
-	if redactSess != nil {
-		hitsByKind = redactSess.HitsByKind()
-		redactedCount = redactSess.TotalHits()
-	}
 	estUsd := float64(usage.InputTokens)*0.000001 + float64(usage.OutputTokens)*0.000003
 	s.store.RecordRequest(types.RequestLogEntry{
 		ClientIP:         id.Peer.IP,
@@ -934,10 +931,10 @@ func (s *Server) recordLog(
 		InputTokens:      usage.InputTokens,
 		OutputTokens:     usage.OutputTokens,
 		EstimatedUsd:     estUsd,
-		RedactedCount:    redactedCount,
+		RedactedCount:    0,
 		Attempts:         attempts,
 		Error:            errMsg,
-	}, hitsByKind)
+	}, nil)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

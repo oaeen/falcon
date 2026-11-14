@@ -23,6 +23,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/falcon-gateway/falcon/core/internal/types"
 )
 
 //go:embed market.json
@@ -49,6 +51,7 @@ type MarketItem struct {
 	Icon      string            `json:"icon,omitempty"`
 	Kind      string            `json:"kind,omitempty"`
 	Providers []string          `json:"providers,omitempty"`
+	Replaces  string            `json:"replaces,omitempty"`
 	Community bool              `json:"community"`
 	Summary   map[string]string `json:"summary,omitempty"`
 	SummaryZh string            `json:"summaryZh,omitempty"`
@@ -57,6 +60,62 @@ type MarketItem struct {
 	Enabled   bool              `json:"enabled"`
 	Version   string            `json:"version,omitempty"`
 	Error     string            `json:"error,omitempty"`
+}
+
+var canonicalPluginAliases = map[string]string{
+	"opencode-zen-free-auth":    "@magpie-community/opencode-zen-free-auth",
+	"zen-free":                  "@magpie-community/opencode-zen-free-auth",
+	"opencode-workbuddy-auth":   "@magpie-community/opencode-workbuddy-auth",
+	"workbuddy":                 "@magpie-community/opencode-workbuddy-auth",
+	"workbuddy-ai":              "@magpie-community/opencode-workbuddy-auth",
+	"opencode-cursor-auth":      "@magpie-community/opencode-cursor-auth",
+	"cursor":                    "@magpie-community/opencode-cursor-auth",
+	"opencode-qoder-auth":       "@magpie-community/opencode-qoder-auth",
+	"qoder":                     "@magpie-community/opencode-qoder-auth",
+	"opencode-zcode-auth":       "@magpie-community/opencode-zcode-auth",
+	"zcode":                     "@magpie-community/opencode-zcode-auth",
+	"opencode-kiro-auth":        "@magpie-community/opencode-kiro-auth",
+	"kiro":                      "@magpie-community/opencode-kiro-auth",
+	"opencode-devin-auth":       "@magpie-community/opencode-devin-auth",
+	"devin":                     "@magpie-community/opencode-devin-auth",
+	"opencode-zed-auth":         "@magpie-community/opencode-zed-auth",
+	"zed":                       "@magpie-community/opencode-zed-auth",
+	"opencode-factory-auth":     "@magpie-community/opencode-factory-auth",
+	"factory":                   "@magpie-community/opencode-factory-auth",
+	"opencode-grok-auth":        "@magpie-community/opencode-grok-auth",
+	"grok":                      "@magpie-community/opencode-grok-auth",
+	"opencode-commandcode-auth": "@magpie-community/opencode-commandcode-auth",
+	"commandcode":               "@magpie-community/opencode-commandcode-auth",
+	"commandcode-plan":          "@magpie-community/opencode-commandcode-auth",
+	"opencode-mimo-auth":        "@magpie-community/opencode-mimo-auth",
+	"mimo":                      "@magpie-community/opencode-mimo-auth",
+	"mimo-app":                  "@magpie-community/opencode-mimo-auth",
+}
+
+// CanonicalPluginPackage normalizes a package name to its canonical scoped identifier if known.
+func CanonicalPluginPackage(name string) string {
+	s := strings.TrimSpace(strings.TrimPrefix(name, "npm:"))
+	if s == "" {
+		return ""
+	}
+	lower := strings.ToLower(s)
+	if canon, ok := canonicalPluginAliases[lower]; ok {
+		return canon
+	}
+	return s
+}
+
+func canonicalSpec(spec string) string {
+	s := strings.TrimSpace(strings.TrimPrefix(spec, "npm:"))
+	if s == "" {
+		return ""
+	}
+	pkg := CanonicalPluginPackage(PackageNameOf(s))
+	ver := PackageVersionOf(s)
+	if ver != "" {
+		return pkg + "@" + ver
+	}
+	return pkg
 }
 
 type marketDoc struct {
@@ -86,6 +145,7 @@ func BuiltinMarket() []MarketItem {
 		return nil
 	}
 	for i := range doc.Plugins {
+		doc.Plugins[i].Package = CanonicalPluginPackage(doc.Plugins[i].Package)
 		if doc.Plugins[i].Kind == "" {
 			doc.Plugins[i].Kind = "provider"
 		}
@@ -99,7 +159,7 @@ func BuiltinMarket() []MarketItem {
 	return doc.Plugins
 }
 
-// FetchLiveMarket retrieves remote registry.json and merges with BuiltinMarket.
+// FetchLiveMarket retrieves remote registry.json and merges with BuiltinMarket without bare/scoped duplicates.
 func FetchLiveMarket(ctx context.Context, client *http.Client, chinaMirror bool) []MarketItem {
 	base := BuiltinMarket()
 	if client == nil {
@@ -132,13 +192,40 @@ func FetchLiveMarket(ctx context.Context, client *http.Client, chinaMirror bool)
 	if len(remote) == 0 {
 		return base
 	}
+
+	// Build dynamic alias table from any remote @magpie-community/* packages / replaces fields.
+	dynAlias := make(map[string]string)
+	for _, it := range remote {
+		if strings.HasPrefix(it.Package, "@magpie-community/") {
+			bare := strings.TrimPrefix(it.Package, "@magpie-community/")
+			dynAlias[strings.ToLower(bare)] = it.Package
+			if it.Replaces != "" {
+				dynAlias[strings.ToLower(it.Replaces)] = it.Package
+			}
+		}
+	}
+	normPkg := func(pkg string) string {
+		c := CanonicalPluginPackage(pkg)
+		if mapped, ok := dynAlias[strings.ToLower(c)]; ok {
+			return mapped
+		}
+		return c
+	}
+
 	byPkg := make(map[string]MarketItem, len(base)+len(remote))
 	order := make([]string, 0, len(base)+len(remote))
 	for _, it := range base {
+		it.Package = normPkg(it.Package)
+		if _, exists := byPkg[it.Package]; !exists {
+			order = append(order, it.Package)
+		}
 		byPkg[it.Package] = it
-		order = append(order, it.Package)
 	}
 	for _, it := range remote {
+		if it.Kind == "middleware" {
+			continue
+		}
+		it.Package = normPkg(it.Package)
 		if it.Kind == "" {
 			it.Kind = "provider"
 		}
@@ -148,16 +235,16 @@ func FetchLiveMarket(ctx context.Context, client *http.Client, chinaMirror bool)
 		if it.SummaryEn == "" {
 			it.SummaryEn = it.Summary["en"]
 		}
-		if _, exists := byPkg[it.Package]; !exists {
-			order = append(order, it.Package)
-		}
-		// Keep our curated dignified summary if already in builtin, else take remote
 		if cur, ok := byPkg[it.Package]; ok {
 			if len(it.Providers) > 0 && len(cur.Providers) == 0 {
 				cur.Providers = it.Providers
 			}
+			if it.Replaces != "" && cur.Replaces == "" {
+				cur.Replaces = it.Replaces
+			}
 			byPkg[it.Package] = cur
 		} else {
+			order = append(order, it.Package)
 			byPkg[it.Package] = it
 		}
 	}
@@ -166,6 +253,55 @@ func FetchLiveMarket(ctx context.Context, client *http.Client, chinaMirror bool)
 		out = append(out, byPkg[k])
 	}
 	return out
+}
+
+// ReconcileInstalledEntries migrates legacy bare package names/directories to canonical @magpie-community/*
+// entries and deduplicates any duplicate records in config.json.
+func ReconcileInstalledEntries(dataDir string, entries []types.InstalledPluginEntry) ([]types.InstalledPluginEntry, bool) {
+	if len(entries) == 0 {
+		return entries, false
+	}
+	changed := false
+	idxByCanon := make(map[string]int, len(entries))
+	out := make([]types.InstalledPluginEntry, 0, len(entries))
+	for _, ent := range entries {
+		origPkg := PackageNameOf(ent.Package)
+		canonPkg := CanonicalPluginPackage(origPkg)
+		canonSp := canonicalSpec(ent.Spec)
+		if canonSp == "" {
+			canonSp = canonPkg
+		}
+		if ent.Package != canonPkg || ent.Spec != canonSp {
+			changed = true
+		}
+		if dataDir != "" && origPkg != "" && origPkg != canonPkg {
+			legacyDir := PackageDir(dataDir, origPkg)
+			canonDir := PackageDir(dataDir, canonPkg)
+			if _, lerr := os.Stat(legacyDir); lerr == nil {
+				if _, cerr := os.Stat(canonDir); errors.Is(cerr, os.ErrNotExist) {
+					_ = os.MkdirAll(filepath.Dir(canonDir), 0o755)
+					_ = os.Rename(legacyDir, canonDir)
+				} else {
+					_ = os.RemoveAll(legacyDir)
+				}
+			}
+		}
+		ent.Package = canonPkg
+		ent.Spec = canonSp
+		if pos, exists := idxByCanon[canonPkg]; exists {
+			changed = true
+			if ent.Enabled {
+				out[pos].Enabled = true
+			}
+			if PackageVersionOf(ent.Spec) != "" {
+				out[pos].Spec = ent.Spec
+			}
+			continue
+		}
+		idxByCanon[canonPkg] = len(out)
+		out = append(out, ent)
+	}
+	return out, changed
 }
 
 // PackageNameOf strips an optional @version suffix from an npm package spec.
@@ -209,43 +345,49 @@ func InstalledVersion(dataDir, pkgName string) string {
 	return pj.Version
 }
 
-// ResolveSpec resolves a short name or package spec against the market catalog.
+// ResolveSpec resolves a short name, bare package, alias, or package spec against the canonical catalog.
 func ResolveSpec(raw string, items []MarketItem) string {
 	s := strings.TrimSpace(raw)
 	s = strings.TrimPrefix(s, "npm:")
 	if s == "" {
 		return ""
 	}
-	name := PackageNameOf(s)
+	name := CanonicalPluginPackage(PackageNameOf(s))
 	ver := PackageVersionOf(s)
 	lower := strings.ToLower(name)
 	for _, it := range items {
-		if strings.ToLower(it.Package) == lower {
+		canonPkg := CanonicalPluginPackage(it.Package)
+		if strings.ToLower(canonPkg) == lower || strings.ToLower(it.Package) == lower {
 			if ver != "" {
-				return it.Package + "@" + ver
+				return canonPkg + "@" + ver
 			}
-			return it.Package
+			return canonPkg
 		}
-		bare := it.Package
+		bare := canonPkg
 		if idx := strings.Index(bare, "/"); idx >= 0 {
 			bare = bare[idx+1:]
 		}
-		if strings.ToLower(bare) == lower || strings.ToLower(it.Name) == lower {
+		if strings.ToLower(bare) == lower ||
+			strings.ToLower(it.Name) == lower ||
+			(it.Replaces != "" && strings.ToLower(it.Replaces) == lower) {
 			if ver != "" {
-				return it.Package + "@" + ver
+				return canonPkg + "@" + ver
 			}
-			return it.Package
+			return canonPkg
 		}
 		for _, p := range it.Providers {
 			if strings.ToLower(p) == lower {
 				if ver != "" {
-					return it.Package + "@" + ver
+					return canonPkg + "@" + ver
 				}
-				return it.Package
+				return canonPkg
 			}
 		}
 	}
-	return s
+	if ver != "" {
+		return name + "@" + ver
+	}
+	return name
 }
 
 // InstallResult describes an installed plugin package on disk.
@@ -261,7 +403,7 @@ func InstallPackage(ctx context.Context, client *http.Client, dataDir, spec stri
 	if client == nil {
 		client = &http.Client{Timeout: 45 * time.Second}
 	}
-	pkgName := PackageNameOf(spec)
+	pkgName := CanonicalPluginPackage(PackageNameOf(spec))
 	wantVer := PackageVersionOf(spec)
 	if pkgName == "" {
 		return InstallResult{}, errors.New("empty package spec")
@@ -307,6 +449,10 @@ func InstallPackage(ctx context.Context, client *http.Client, dataDir, spec stri
 	if err := os.Rename(stageDir, destDir); err != nil {
 		_ = os.RemoveAll(stageDir)
 		return InstallResult{}, err
+	}
+	if strings.HasPrefix(pkgName, "@magpie-community/") {
+		bare := strings.TrimPrefix(pkgName, "@magpie-community/")
+		_ = os.RemoveAll(PackageDir(dataDir, bare))
 	}
 
 	// Install runtime npm dependencies if declared and Bun is available (skipped on iOS / no bun)

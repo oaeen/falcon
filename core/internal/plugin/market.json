@@ -9,8 +9,151 @@
       "providers": ["opencode-zen-free"],
       "community": true,
       "summary": {
-        "en": "Public credential access to OpenCode Zen free models with automatic model discovery and streaming.",
+        "en": "Access OpenCode Zen free models using the public credential with automatic model discovery and streaming.",
         "zh": "使用公共凭证接入 OpenCode Zen 免费模型，支持自动发现模型与流式响应。"
+      }
+    },
+    {
+      "package": "@magpie-community/opencode-workbuddy-auth",
+      "name": "WorkBuddy",
+      "icon": "workbuddy-color",
+      "kind": "provider",
+      "providers": ["workbuddy", "workbuddy-ai"],
+      "replaces": "opencode-workbuddy-auth",
+      "community": true,
+      "summary": {
+        "en": "WorkBuddy China edition (CodeBuddy plan) and international edition (workbuddy.ai).",
+        "zh": "支持 WorkBuddy 国内版（CodeBuddy 套餐）与国际版（workbuddy.ai）。"
+      }
+    },
+    {
+      "package": "@magpie-community/opencode-cursor-auth",
+      "name": "Cursor",
+      "icon": "cursor",
+      "kind": "provider",
+      "providers": ["cursor"],
+      "replaces": "opencode-cursor-auth",
+      "community": true,
+      "summary": {
+        "en": "Access models included in your Cursor Pro, Ultra, or Teams subscription.",
+        "zh": "使用 Cursor Pro、Ultra 或 Teams 订阅内的模型。"
+      }
+    },
+    {
+      "package": "@magpie-community/opencode-qoder-auth",
+      "name": "Qoder",
+      "icon": "qoder",
+      "kind": "provider",
+      "providers": ["qoder", "qoder-cn", "qwenwork", "qwenwork-enterprise"],
+      "replaces": "opencode-qoder-auth",
+      "community": true,
+      "summary": {
+        "en": "Connect Qoder global, Qoder CN, and QwenWork workspace subscriptions.",
+        "zh": "接入 Qoder 国际版、Qoder 中国版及千问办公订阅服务。"
+      }
+    },
+    {
+      "package": "@magpie-community/opencode-zcode-auth",
+      "name": "ZCode",
+      "icon": "zcode",
+      "kind": "provider",
+      "providers": ["zcode"],
+      "replaces": "opencode-zcode-auth",
+      "community": true,
+      "summary": {
+        "en": "Connect Z.ai and BigModel GLM Coding Plan with individual or team seats.",
+        "zh": "接入 Z.ai 与智谱 GLM Coding 个人及团队订阅席位。"
+      }
+    },
+    {
+      "package": "@magpie-community/opencode-kiro-auth",
+      "name": "Kiro",
+      "icon": "kiro-color",
+      "kind": "provider",
+      "providers": ["kiro"],
+      "replaces": "opencode-kiro-auth",
+      "community": true,
+      "summary": {
+        "en": "Authenticate with Kiro Free, Pro, or Power plans via OAuth or API key.",
+        "zh": "通过 OAuth 或 API 密钥接入 Kiro 订阅服务。"
+      }
+    },
+    {
+      "package": "@magpie-community/opencode-devin-auth",
+      "name": "Devin",
+      "icon": "devin",
+      "kind": "provider",
+      "providers": ["devin"],
+      "replaces": "opencode-devin-auth",
+      "community": true,
+      "summary": {
+        "en": "Access Devin models using your Devin account.",
+        "zh": "通过 Devin 账号接入 Devin 托管模型。"
+      }
+    },
+    {
+      "package": "@magpie-community/opencode-zed-auth",
+      "name": "Zed",
+      "icon": "zed",
+      "kind": "provider",
+      "providers": ["zed"],
+      "replaces": "opencode-zed-auth",
+      "community": true,
+      "summary": {
+        "en": "Use Claude, GPT, Gemini, and Grok models provided by your Zed subscription.",
+        "zh": "使用 Zed 订阅内托管的 Claude、GPT、Gemini 与 Grok 模型。"
+      }
+    },
+    {
+      "package": "@magpie-community/opencode-factory-auth",
+      "name": "Factory",
+      "icon": "factory",
+      "kind": "provider",
+      "providers": ["factory"],
+      "replaces": "opencode-factory-auth",
+      "community": true,
+      "summary": {
+        "en": "Connect your Factory Droid subscription models.",
+        "zh": "接入 Factory Droid 订阅内提供的模型。"
+      }
+    },
+    {
+      "package": "@magpie-community/opencode-grok-auth",
+      "name": "Grok",
+      "icon": "xai",
+      "kind": "provider",
+      "providers": ["grok"],
+      "replaces": "opencode-grok-auth",
+      "community": true,
+      "summary": {
+        "en": "Use SuperGrok and X Premium+ models through Grok authentication.",
+        "zh": "通过 Grok 授权接入 SuperGrok 与 X Premium+ 模型。"
+      }
+    },
+    {
+      "package": "@magpie-community/opencode-commandcode-auth",
+      "name": "Command Code",
+      "icon": "commandcode",
+      "kind": "provider",
+      "providers": ["commandcode-plan"],
+      "replaces": "opencode-commandcode-auth",
+      "community": true,
+      "summary": {
+        "en": "Access Command Code Pro, Max, Ultra, and Teams subscription models.",
+        "zh": "接入 Command Code 各档订阅与团队套餐模型。"
+      }
+    },
+    {
+      "package": "@magpie-community/opencode-mimo-auth",
+      "name": "Xiaomi MiMo",
+      "icon": "mimocode",
+      "kind": "provider",
+      "providers": ["mimo-app"],
+      "replaces": "opencode-mimo-auth",
+      "community": true,
+      "summary": {
+        "en": "Connect Xiaomi MiMo models with your Xiaomi account.",
+        "zh": "通过小米账号接入 Xiaomi MiMo 模型。"
       }
     },
     {
@@ -134,18 +277,6 @@
       }
     },
     {
-      "package": "opencode-cursor-auth",
-      "name": "Cursor",
-      "icon": "cursor",
-      "kind": "provider",
-      "providers": ["cursor"],
-      "community": true,
-      "summary": {
-        "en": "Access models available in your Cursor Pro, Ultra, or Teams subscription.",
-        "zh": "使用 Cursor Pro、Ultra 或 Teams 订阅内的模型。"
-      }
-    },
-    {
       "package": "opencode-windsurf-auth",
       "name": "Windsurf",
       "icon": "windsurf",
@@ -167,18 +298,6 @@
       "summary": {
         "en": "Authenticate with Trae subscription models for mainland and global editions.",
         "zh": "接入 Trae 国内版与国际版订阅模型。"
-      }
-    },
-    {
-      "package": "opencode-workbuddy-auth",
-      "name": "WorkBuddy",
-      "icon": "workbuddy",
-      "kind": "provider",
-      "providers": ["workbuddy", "workbuddy-ai"],
-      "community": true,
-      "summary": {
-        "en": "Support WorkBuddy China (CodeBuddy plan) and international editions.",
-        "zh": "支持 WorkBuddy 国内版（CodeBuddy 套餐）与国际版。"
       }
     }
   ]

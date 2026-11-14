@@ -19,8 +19,11 @@ import (
 )
 
 const (
-	frameOverhead       = 2048
-	defaultStreamWindow = 512 << 10
+	frameOverhead        = 2048
+	defaultStreamWindow  = 512 << 10
+	creditBatchThreshold = 32 << 10
+	creditMinHostHeadrm  = 128 << 10
+	maxStreamQueueBytes  = 4 << 20
 )
 
 // BunHost manages the long-lived Bun child process executing embedded host.mjs.
@@ -52,14 +55,193 @@ type rpcReply struct {
 	err    error
 }
 
+type streamChunk struct {
+	data []byte
+	cost int
+}
+
 type streamState struct {
+	host      *BunHost
+	id        int64
 	headReady chan struct{}
+	headOnce  sync.Once
 	status    int
 	headers   http.Header
-	pr        *io.PipeReader
-	pw        *io.PipeWriter
-	errOnce   sync.Once
-	err       error
+	headErr   error
+
+	mu            sync.Mutex
+	cond          *sync.Cond
+	queue         []streamChunk
+	headOff       int
+	queuedBytes   int
+	inFlightCost  int
+	pendingCredit int
+	eof           bool
+	closed        bool
+	streamErr     error
+}
+
+func newStreamState(host *BunHost, id int64) *streamState {
+	ss := &streamState{
+		host:      host,
+		id:        id,
+		headReady: make(chan struct{}),
+	}
+	ss.cond = sync.NewCond(&ss.mu)
+	return ss
+}
+
+func (ss *streamState) setHead(status int, hdr http.Header) {
+	ss.headOnce.Do(func() {
+		ss.status = status
+		ss.headers = hdr
+		close(ss.headReady)
+	})
+}
+
+func (ss *streamState) fail(err error) {
+	ss.headOnce.Do(func() {
+		ss.headErr = err
+		close(ss.headReady)
+	})
+	ss.mu.Lock()
+	if ss.streamErr == nil {
+		ss.streamErr = err
+	}
+	ss.eof = true
+	ss.cond.Broadcast()
+	ss.mu.Unlock()
+}
+
+func (ss *streamState) finish() {
+	ss.headOnce.Do(func() {
+		close(ss.headReady)
+	})
+	ss.mu.Lock()
+	ss.eof = true
+	ss.cond.Broadcast()
+	ss.mu.Unlock()
+}
+
+func (ss *streamState) enqueue(raw []byte) error {
+	if len(raw) == 0 {
+		return nil
+	}
+	cost := len(raw) + frameOverhead
+	ss.mu.Lock()
+	if ss.closed || ss.eof {
+		ss.mu.Unlock()
+		return nil
+	}
+	if ss.queuedBytes+len(raw) > maxStreamQueueBytes {
+		ss.mu.Unlock()
+		err := errors.New("plugin stream queue overflow")
+		ss.fail(err)
+		return err
+	}
+	ss.queue = append(ss.queue, streamChunk{data: raw, cost: cost})
+	ss.queuedBytes += len(raw)
+	ss.inFlightCost += cost
+	ss.cond.Signal()
+	ss.mu.Unlock()
+	return nil
+}
+
+func (ss *streamState) shouldFlushCreditLocked() int {
+	if ss.pendingCredit <= 0 || ss.eof || ss.closed {
+		return 0
+	}
+	hostFree := defaultStreamWindow - (ss.inFlightCost + ss.pendingCredit)
+	if ss.pendingCredit >= creditBatchThreshold || hostFree < creditMinHostHeadrm {
+		n := ss.pendingCredit
+		ss.pendingCredit = 0
+		return n
+	}
+	return 0
+}
+
+func (ss *streamState) Read(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	ss.mu.Lock()
+	for len(ss.queue) == 0 && !ss.eof && !ss.closed && ss.streamErr == nil {
+		// If upstream may be near credit exhaustion while queue is empty, flush pending credits first.
+		if credit := ss.shouldFlushCreditLocked(); credit > 0 {
+			ss.mu.Unlock()
+			ss.host.sendCredit(ss.id, credit)
+			ss.mu.Lock()
+			continue
+		}
+		ss.cond.Wait()
+	}
+
+	if len(ss.queue) == 0 {
+		var err error
+		if ss.streamErr != nil {
+			err = ss.streamErr
+		} else if ss.closed {
+			err = io.ErrClosedPipe
+		} else {
+			err = io.EOF
+		}
+		ss.mu.Unlock()
+		return 0, err
+	}
+
+	total := 0
+	for len(ss.queue) > 0 && total < len(p) {
+		cur := &ss.queue[0]
+		n := copy(p[total:], cur.data[ss.headOff:])
+		total += n
+		ss.headOff += n
+		ss.queuedBytes -= n
+		if ss.headOff >= len(cur.data) {
+			ss.inFlightCost -= cur.cost
+			ss.pendingCredit += cur.cost
+			ss.headOff = 0
+			ss.queue = ss.queue[1:]
+		}
+	}
+	if len(ss.queue) == 0 {
+		// Compact backing array slice when empty.
+		ss.queue = nil
+	}
+	credit := ss.shouldFlushCreditLocked()
+	ss.mu.Unlock()
+
+	if credit > 0 {
+		ss.host.sendCredit(ss.id, credit)
+	}
+	return total, nil
+}
+
+func (ss *streamState) Close() error {
+	ss.mu.Lock()
+	alreadyClosed := ss.closed
+	alreadyEOF := ss.eof
+	ss.closed = true
+	ss.queue = nil
+	ss.headOff = 0
+	ss.queuedBytes = 0
+	ss.inFlightCost = 0
+	ss.pendingCredit = 0
+	ss.cond.Broadcast()
+	ss.mu.Unlock()
+
+	if alreadyClosed {
+		return nil
+	}
+	ss.host.pendingMu.Lock()
+	_, stillOpen := ss.host.pending[ss.id]
+	if stillOpen {
+		delete(ss.host.pending, ss.id)
+	}
+	ss.host.pendingMu.Unlock()
+	if stillOpen && !alreadyEOF {
+		_ = ss.host.writeJSON(map[string]any{"method": "abort", "params": map[string]any{"id": ss.id}})
+	}
+	return nil
 }
 
 // DetectBun finds a usable Bun binary from configuredPath or PATH. Returns "" on iOS,
@@ -133,6 +315,16 @@ func (h *BunHost) Stop() {
 	h.failAllPending(errors.New("plugin host stopped"))
 }
 
+func (h *BunHost) sendCredit(id int64, n int) {
+	if n <= 0 {
+		return
+	}
+	_ = h.writeJSON(map[string]any{
+		"method": "credit",
+		"params": map[string]any{"id": id, "n": n},
+	})
+}
+
 func (h *BunHost) failAllPending(err error) {
 	h.pendingMu.Lock()
 	all := h.pending
@@ -141,11 +333,7 @@ func (h *BunHost) failAllPending(err error) {
 
 	for _, p := range all {
 		if p.stream != nil {
-			p.stream.errOnce.Do(func() {
-				p.stream.err = err
-				close(p.stream.headReady)
-			})
-			_ = p.stream.pw.CloseWithError(err)
+			p.stream.fail(err)
 		}
 		select {
 		case p.done <- rpcReply{err: err}:
@@ -177,6 +365,9 @@ func (h *BunHost) StartAndInit(ctx context.Context, plugins []map[string]any, op
 	}
 	if h.dns != "" {
 		env = append(env, "FALCON_DNS="+h.dns)
+	}
+	if (runtime.GOOS == "android" || runtime.GOOS == "ios") && os.Getenv("FALCON_MOBILE") == "" {
+		env = append(env, "FALCON_MOBILE=1")
 	}
 	cmd.Env = env
 
@@ -294,44 +485,32 @@ func (h *BunHost) handleLine(line []byte) {
 			for k, v := range msg.Headers {
 				hdr.Set(k, v)
 			}
-			p.stream.status = msg.Status
-			p.stream.headers = hdr
-			p.stream.errOnce.Do(func() {
-				close(p.stream.headReady)
-			})
+			p.stream.setHead(msg.Status, hdr)
 			return
 		case "chunk":
 			raw, err := base64.StdEncoding.DecodeString(msg.Data)
 			if err != nil {
-				_ = p.stream.pw.CloseWithError(err)
+				h.pendingMu.Lock()
+				delete(h.pending, id)
+				h.pendingMu.Unlock()
+				p.stream.fail(err)
 				return
 			}
-			if len(raw) > 0 {
-				if _, werr := p.stream.pw.Write(raw); werr != nil {
-					return
-				}
+			if qerr := p.stream.enqueue(raw); qerr != nil {
+				h.pendingMu.Lock()
+				delete(h.pending, id)
+				h.pendingMu.Unlock()
+				_ = h.writeJSON(map[string]any{"method": "abort", "params": map[string]any{"id": id}})
 			}
-			_ = h.writeJSON(map[string]any{
-				"method": "credit",
-				"params": map[string]any{"id": id, "n": len(raw) + frameOverhead},
-			})
 			return
 		}
 		h.pendingMu.Lock()
 		delete(h.pending, id)
 		h.pendingMu.Unlock()
 		if msg.Error != nil {
-			err := errors.New(msg.Error.Message)
-			p.stream.errOnce.Do(func() {
-				p.stream.err = err
-				close(p.stream.headReady)
-			})
-			_ = p.stream.pw.CloseWithError(err)
+			p.stream.fail(errors.New(msg.Error.Message))
 		} else {
-			p.stream.errOnce.Do(func() {
-				close(p.stream.headReady)
-			})
-			_ = p.stream.pw.Close()
+			p.stream.finish()
 		}
 		return
 	}
@@ -403,12 +582,7 @@ func (h *BunHost) Call(ctx context.Context, method string, params any, out any) 
 // Fetch executes a streaming HTTP request through a plugin's loader fetch and returns an *http.Response.
 func (h *BunHost) Fetch(ctx context.Context, params map[string]any) (*http.Response, error) {
 	id := h.nextID.Add(1)
-	pr, pw := io.Pipe()
-	ss := &streamState{
-		headReady: make(chan struct{}),
-		pr:        pr,
-		pw:        pw,
-	}
+	ss := newStreamState(h, id)
 	p := &rpcPending{stream: ss}
 	h.pendingMu.Lock()
 	h.pending[id] = p
@@ -423,30 +597,21 @@ func (h *BunHost) Fetch(ctx context.Context, params map[string]any) (*http.Respo
 		h.pendingMu.Lock()
 		delete(h.pending, id)
 		h.pendingMu.Unlock()
-		_ = pw.Close()
-		_ = pr.Close()
+		ss.fail(err)
 		return nil, err
 	}
 
-	go func() {
-		<-ctx.Done()
-		h.pendingMu.Lock()
-		_, stillOpen := h.pending[id]
-		if stillOpen {
-			delete(h.pending, id)
-		}
-		h.pendingMu.Unlock()
-		if stillOpen {
-			_ = h.writeJSON(map[string]any{"method": "abort", "params": map[string]any{"id": id}})
-			_ = pw.CloseWithError(ctx.Err())
-		}
-	}()
+	stopCancel := context.AfterFunc(ctx, func() {
+		ss.fail(ctx.Err())
+		_ = ss.Close()
+	})
 
 	select {
 	case <-ss.headReady:
-		if ss.err != nil {
-			_ = pr.Close()
-			return nil, ss.err
+		if ss.headErr != nil {
+			stopCancel()
+			_ = ss.Close()
+			return nil, ss.headErr
 		}
 		status := ss.status
 		if status == 0 {
@@ -460,10 +625,24 @@ func (h *BunHost) Fetch(ctx context.Context, params map[string]any) (*http.Respo
 			StatusCode: status,
 			Status:     fmt.Sprintf("%d %s", status, http.StatusText(status)),
 			Header:     hdr,
-			Body:       pr,
+			Body:       &contextCancelBody{ReadCloser: ss, stopCancel: stopCancel},
 		}, nil
 	case <-ctx.Done():
-		_ = pr.Close()
+		stopCancel()
+		ss.fail(ctx.Err())
+		_ = ss.Close()
 		return nil, ctx.Err()
 	}
+}
+
+type contextCancelBody struct {
+	io.ReadCloser
+	stopCancel func() bool
+}
+
+func (c *contextCancelBody) Close() error {
+	if c.stopCancel != nil {
+		c.stopCancel()
+	}
+	return c.ReadCloser.Close()
 }

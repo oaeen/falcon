@@ -2,17 +2,27 @@ package plugin
 
 import "github.com/falcon-gateway/falcon/core/internal/types"
 
+// PluginModelLimit describes context and output token limits for a plugin model.
+type PluginModelLimit struct {
+	Context int `json:"context,omitempty"`
+	Output  int `json:"output,omitempty"`
+}
+
 // PluginModelInfo describes a model exposed by a plugin provider.
 type PluginModelInfo struct {
-	ID       string         `json:"id"`
-	Name     string         `json:"name"`
-	Npm      string         `json:"npm,omitempty"`
-	Protocol types.Protocol `json:"protocol"`
-	URL      string         `json:"url,omitempty"`
-	APIID    string         `json:"apiId,omitempty"`
-	Context  int            `json:"context,omitempty"`
-	Output   int            `json:"output,omitempty"`
-	Free     bool           `json:"free,omitempty"`
+	ID         string            `json:"id"`
+	Name       string            `json:"name"`
+	Npm        string            `json:"npm,omitempty"`
+	Protocol   types.Protocol    `json:"protocol"`
+	URL        string            `json:"url,omitempty"`
+	APIID      string            `json:"apiId,omitempty"`
+	Context    int               `json:"context,omitempty"`
+	Output     int               `json:"output,omitempty"`
+	Limit      *PluginModelLimit `json:"limit,omitempty"`
+	Modalities []string          `json:"modalities,omitempty"`
+	Reasoning  bool              `json:"reasoning,omitempty"`
+	ToolCall   bool              `json:"toolCall,omitempty"`
+	Free       bool              `json:"free,omitempty"`
 }
 
 // PluginAuthMethod describes one sign-in method exposed by a plugin.
@@ -72,16 +82,18 @@ type PluginCheckinResult struct {
 
 // PluginAccountState represents one signed-in plugin account.
 type PluginAccountState struct {
-	ID          string               `json:"id"`
-	ProviderID  string               `json:"providerId"`
-	Type        string               `json:"type"` // "api" | "oauth"
-	Label       string               `json:"label"`
-	Email       string               `json:"email,omitempty"`
-	Status      string               `json:"status"` // "active" | "expired" | "error"
-	Enabled     bool                 `json:"enabled"`
-	Quota       *PluginUsage         `json:"quota,omitempty"`
-	Quotas      []QuotaWindow        `json:"quotas,omitempty"`
-	LastCheckin *PluginCheckinResult `json:"lastCheckin,omitempty"`
+	ID           string               `json:"id"`
+	ProviderID   string               `json:"providerId"`
+	Type         string               `json:"type"` // "api" | "oauth"
+	Label        string               `json:"label"`
+	Email        string               `json:"email,omitempty"`
+	UID          string               `json:"uid,omitempty"`
+	EnterpriseID string               `json:"enterpriseId,omitempty"`
+	Status       string               `json:"status"` // "active" | "expired" | "error"
+	Enabled      bool                 `json:"enabled"`
+	Quota        *PluginUsage         `json:"quota,omitempty"`
+	Quotas       []QuotaWindow        `json:"quotas,omitempty"`
+	LastCheckin  *PluginCheckinResult `json:"lastCheckin,omitempty"`
 }
 
 // PluginProviderState represents one provider registered by an installed plugin.
@@ -89,13 +101,36 @@ type PluginProviderState struct {
 	ID              string               `json:"id"`
 	Name            string               `json:"name"`
 	Protocol        types.Protocol       `json:"protocol"`
+	Authenticated   bool                 `json:"authenticated"`
+	AccountCount    int                  `json:"accountCount"`
 	Models          []PluginModelInfo    `json:"models"`
+	SelectedModels  []string             `json:"selectedModels,omitempty"`
 	Methods         []PluginAuthMethod   `json:"methods"`
 	Options         []PluginOption       `json:"options"`
 	SupportsUsage   bool                 `json:"supportsUsage"`
 	SupportsCheckin bool                 `json:"supportsCheckin"`
+	SupportsModels  bool                 `json:"supportsModels"`
 	Accounts        []PluginAccountState `json:"accounts"`
 	ListError       string               `json:"listError,omitempty"`
+	LastError       string               `json:"lastError,omitempty"`
+}
+
+// ActiveModels returns either the user-selected subset or all discovered models when none are selected.
+func (p PluginProviderState) ActiveModels() []PluginModelInfo {
+	if len(p.SelectedModels) == 0 {
+		return p.Models
+	}
+	allow := make(map[string]bool, len(p.SelectedModels))
+	for _, id := range p.SelectedModels {
+		allow[id] = true
+	}
+	out := make([]PluginModelInfo, 0, len(p.Models))
+	for _, m := range p.Models {
+		if allow[m.ID] {
+			out = append(out, m)
+		}
+	}
+	return out
 }
 
 // InstalledPluginState is returned in GET /admin/v1/state -> plugins.

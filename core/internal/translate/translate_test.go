@@ -103,3 +103,45 @@ func TestStreamTranslationOpenAIToAnthropicAndResponses(t *testing.T) {
 		t.Fatalf("expected usage 10/5, got %+v", st.Usage)
 	}
 }
+
+func TestCollectStreamToCanonical(t *testing.T) {
+	sse := strings.Join([]string{
+		`data: {"id":"cmpl-wb","model":"glm-5.3","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":"Think..."}}]}`,
+		`data: {"id":"cmpl-wb","model":"glm-5.3","choices":[{"index":0,"delta":{"content":"Answer "}}]}`,
+		`data: {"id":"cmpl-wb","model":"glm-5.3","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"lookup","arguments":""}}]}}]}`,
+		`data: {"id":"cmpl-wb","model":"glm-5.3","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"q\":\"go\"}"}}]}}]}`,
+		`data: {"id":"cmpl-wb","model":"glm-5.3","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":12,"completion_tokens":8,"total_tokens":20}}`,
+		`data: [DONE]`,
+	}, "\n\n") + "\n\n"
+
+	canon, err := CollectStreamToCanonical(types.ProtocolOpenAI, []byte(sse), "fallback")
+	if err != nil {
+		t.Fatalf("CollectStreamToCanonical failed: %v", err)
+	}
+	if canon.ID != "cmpl-wb" || canon.Model != "glm-5.3" || canon.FinishReason != "tool_calls" {
+		t.Fatalf("unexpected metadata: %+v", canon)
+	}
+	if canon.Usage.InputTokens != 12 || canon.Usage.OutputTokens != 8 || canon.Usage.TotalTokens != 20 {
+		t.Fatalf("unexpected usage: %+v", canon.Usage)
+	}
+	if len(canon.Parts) != 3 {
+		t.Fatalf("expected thinking + text + tool_use parts, got %+v", canon.Parts)
+	}
+	if canon.Parts[0].Type != "thinking" || canon.Parts[0].Text != "Think..." {
+		t.Fatalf("unexpected thinking part: %+v", canon.Parts[0])
+	}
+	if canon.Parts[1].Type != "text" || canon.Parts[1].Text != "Answer " {
+		t.Fatalf("unexpected text part: %+v", canon.Parts[1])
+	}
+	if canon.Parts[2].Type != "tool_use" || canon.Parts[2].ToolName != "lookup" {
+		t.Fatalf("unexpected tool part: %+v", canon.Parts[2])
+	}
+
+	oaiJSON, err := EncodeResponse(types.ProtocolOpenAI, canon)
+	if err != nil {
+		t.Fatalf("EncodeResponse openai: %v", err)
+	}
+	if !strings.Contains(string(oaiJSON), `"Answer "`) || !strings.Contains(string(oaiJSON), `"lookup"`) {
+		t.Fatalf("unexpected openai encoded response: %s", string(oaiJSON))
+	}
+}
