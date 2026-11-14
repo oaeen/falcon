@@ -620,13 +620,13 @@ class _PermissionBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = FalconColors.of(context);
     return FalconCard(
-      backgroundColor: c.warningSoft,
-      borderColor: c.warning.withValues(alpha: 0.35),
+      backgroundColor: c.cardSubtle,
+      borderColor: c.border,
       padding: const EdgeInsets.all(14),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: c.warning),
+          Icon(icon, size: 20, color: c.textPrimary),
           const SizedBox(width: 12),
           Expanded(
             child: Column(

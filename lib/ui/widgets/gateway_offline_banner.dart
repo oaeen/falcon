@@ -14,12 +14,16 @@ class GatewayOfflineCard extends ConsumerWidget {
     final l10n = context.l10n;
     final c = FalconColors.of(context);
     return FalconCard(
-      backgroundColor: c.warningSoft,
-      borderColor: c.warning.withValues(alpha: 0.35),
+      backgroundColor: c.cardSubtle,
+      borderColor: c.border,
       padding: const EdgeInsets.all(14),
       child: Row(
         children: [
-          Icon(Icons.power_settings_new_rounded, size: 20, color: c.warning),
+          Icon(
+            Icons.power_settings_new_rounded,
+            size: 20,
+            color: c.textSecondary,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(

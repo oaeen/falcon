@@ -245,15 +245,15 @@ class _PluginModelsSheetState extends ConsumerState<PluginModelsSheet> {
           ),
           if (_selectedIds.isEmpty && _models.isNotEmpty) ...[
             const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: c.accentSoft.withValues(alpha: 0.65),
-                borderRadius: BorderRadius.circular(14),
-              ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
               child: Text(
                 l10n.pluginsModelsAutoBanner,
-                style: TextStyle(fontSize: 12, color: c.textPrimary),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: c.textSecondary,
+                  height: 1.4,
+                ),
               ),
             ),
           ],
@@ -377,12 +377,12 @@ class _PluginModelRow extends StatelessWidget {
                         if (model.free)
                           StatusPill(
                             label: l10n.pluginsModelsCapFree,
-                            tone: StatusTone.success,
+                            tone: StatusTone.neutral,
                           ),
                         if (model.reasoning)
                           StatusPill(
                             label: l10n.pluginsModelsCapReasoning,
-                            tone: StatusTone.accent,
+                            tone: StatusTone.neutral,
                           ),
                         if (model.toolCall)
                           StatusPill(

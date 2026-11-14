@@ -13,7 +13,6 @@ import '../widgets/falcon_card.dart';
 import '../widgets/falcon_row.dart';
 import '../widgets/responsive_body.dart';
 import '../widgets/sheet_frame.dart';
-import '../widgets/status_pill.dart';
 import 'backup_sheet.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -104,14 +103,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     FalconRow(
                       icon: Icons.battery_saver_outlined,
                       title: l10n.settingsBatteryExemption,
-                      trailing: StatusPill(
-                        label: runtime.batteryOptimizationIgnored
-                            ? l10n.settingsBatteryGranted
-                            : l10n.settingsBatteryNotGranted,
-                        tone: runtime.batteryOptimizationIgnored
-                            ? StatusTone.success
-                            : StatusTone.warning,
-                      ),
+                      value: runtime.batteryOptimizationIgnored
+                          ? l10n.settingsBatteryGranted
+                          : l10n.settingsBatteryNotGranted,
                       onTap: () => ref
                           .read(gatewayRuntimeProvider.notifier)
                           .requestBatteryExemption(),
@@ -128,14 +122,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     FalconRow(
                       icon: Icons.notifications_none_rounded,
                       title: l10n.settingsNotificationPermission,
-                      trailing: StatusPill(
-                        label: runtime.notificationPermissionGranted
-                            ? l10n.settingsBatteryGranted
-                            : l10n.settingsBatteryNotGranted,
-                        tone: runtime.notificationPermissionGranted
-                            ? StatusTone.success
-                            : StatusTone.warning,
-                      ),
+                      value: runtime.notificationPermissionGranted
+                          ? l10n.settingsBatteryGranted
+                          : l10n.settingsBatteryNotGranted,
                       onTap: () => ref
                           .read(gatewayRuntimeProvider.notifier)
                           .requestNotificationPermission(),
@@ -216,14 +205,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     FalconRow(
                       icon: Icons.notifications_none_rounded,
                       title: l10n.settingsNotificationPermission,
-                      trailing: StatusPill(
-                        label: runtime.notificationPermissionGranted
-                            ? l10n.settingsBatteryGranted
-                            : l10n.settingsBatteryNotGranted,
-                        tone: runtime.notificationPermissionGranted
-                            ? StatusTone.success
-                            : StatusTone.warning,
-                      ),
+                      value: runtime.notificationPermissionGranted
+                          ? l10n.settingsBatteryGranted
+                          : l10n.settingsBatteryNotGranted,
                       onTap: () => ref
                           .read(gatewayRuntimeProvider.notifier)
                           .requestNotificationPermission(),

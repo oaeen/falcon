@@ -9,7 +9,6 @@ import '../../l10n/l10n.dart';
 import '../../state/gateway_state.dart';
 import '../../theme/falcon_theme.dart';
 import '../widgets/sheet_frame.dart';
-import '../widgets/status_pill.dart';
 
 const String _kCustomKeyChoice = '__custom__';
 
@@ -351,13 +350,17 @@ class _PlaygroundSheetState extends ConsumerState<PlaygroundSheet> {
             ),
           const SizedBox(height: 12),
           if (!requireAccessKey)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: StatusPill(
-                label: l10n.playgroundKeyNotRequired,
-                icon: Icons.lock_open_outlined,
-                tone: StatusTone.neutral,
-              ),
+            Row(
+              children: [
+                Icon(Icons.lock_open_outlined, size: 14, color: c.textMuted),
+                const SizedBox(width: 5),
+                Flexible(
+                  child: Text(
+                    l10n.playgroundKeyNotRequired,
+                    style: TextStyle(fontSize: 12, color: c.textSecondary),
+                  ),
+                ),
+              ],
             )
           else ...[
             DropdownButtonFormField<String?>(
@@ -447,8 +450,8 @@ class _PlaygroundSheetState extends ConsumerState<PlaygroundSheet> {
                             ),
                           ),
                           if (stats.ttftMs != null || stats.totalMs > 0)
-                            StatusPill(
-                              label: _streaming && stats.tokPerSec > 0
+                            Text(
+                              _streaming && stats.tokPerSec > 0
                                   ? l10n.playgroundStreamRate(
                                       stats.tokPerSec.toStringAsFixed(1),
                                       (stats.totalMs / 1000).toStringAsFixed(1),
@@ -458,9 +461,12 @@ class _PlaygroundSheetState extends ConsumerState<PlaygroundSheet> {
                                       stats.totalMs,
                                       stats.tokens,
                                     ),
-                              tone: _streaming
-                                  ? StatusTone.accent
-                                  : StatusTone.success,
+                              style: FalconTheme.tabular(
+                                TextStyle(
+                                  fontSize: 12,
+                                  color: c.textSecondary,
+                                ),
+                              ),
                             ),
                         ],
                       );

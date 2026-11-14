@@ -95,10 +95,10 @@ class RequestDetailSheet extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: c.dangerSoft,
-                borderRadius: BorderRadius.circular(8),
+                color: c.cardSubtle,
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: c.danger.withValues(alpha: 0.3),
+                  color: c.border,
                   width: FalconTheme.borderWidth,
                 ),
               ),
